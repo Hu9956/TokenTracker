@@ -221,6 +221,7 @@
   "limits.status.all_hidden": "所有限额提供商都已隐藏。请打开显示设置重新显示。",
   "nav.usage": "用量",
   "nav.limits": "限额",
+  "nav.subscriptions": "订阅",
   "nav.widgets": "菜单栏与小组件",
   "nav.skills": "Skills",
   "nav.leaderboard": "排行榜",

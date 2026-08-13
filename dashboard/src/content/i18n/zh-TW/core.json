@@ -206,6 +206,7 @@
   "limits.status.all_hidden": "所有限額提供商都已隱藏。請開啟顯示設定重新顯示。",
   "nav.usage": "用量",
   "nav.limits": "限額",
+  "nav.subscriptions": "訂閱",
   "nav.widgets": "選單欄與小元件",
   "nav.skills": "Skills",
   "nav.leaderboard": "排行榜",

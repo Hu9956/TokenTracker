@@ -1472,3 +1472,28 @@ landing.v3.how.scene.files_changed,landing,LandingPage,HowItWorksSection,scene_f
 landing.v3.how.scene.session_title,landing,LandingPage,HowItWorksSection,scene_session_title,"session log · last turn",,active
 landing.v3.how.scene.appended,landing,LandingPage,HowItWorksSection,scene_appended,"appended locally",,active
 landing.v3.how.scene.total_tokens,landing,LandingPage,HowItWorksSection,scene_total_tokens,"total tokens",,active
+nav.subscriptions,shared,*,Sidebar,nav_subscriptions,"Subscriptions",,active
+subscriptions.page.title,ui,SubscriptionsPage,SubscriptionsPage,title,"Subscriptions",,active
+subscriptions.page.subtitle,ui,SubscriptionsPage,SubscriptionsPage,subtitle,"Track renewal and expiry dates for your AI service plans.",,active
+subscriptions.add,ui,SubscriptionsPage,SubscriptionsPage,add,"Add subscription",,active
+subscriptions.edit,ui,SubscriptionsPage,SubscriptionsPage,edit,"Edit",,active
+subscriptions.delete,ui,SubscriptionsPage,SubscriptionsPage,delete,"Delete",,active
+subscriptions.save,ui,SubscriptionsPage,SubscriptionsPage,save,"Save",,active
+subscriptions.confirm_delete_title,ui,SubscriptionsPage,SubscriptionsPage,confirm_delete_title,"Delete this subscription?",,active
+subscriptions.form.service,ui,SubscriptionsPage,SubscriptionsForm,form_service,"Service",,active
+subscriptions.form.service_placeholder,ui,SubscriptionsPage,SubscriptionsForm,form_service_placeholder,"e.g. GPT, Claude",,active
+subscriptions.form.plan,ui,SubscriptionsPage,SubscriptionsForm,form_plan,"Plan",,active
+subscriptions.form.plan_placeholder,ui,SubscriptionsPage,SubscriptionsForm,form_plan_placeholder,"e.g. Plus, Pro",,active
+subscriptions.form.auto_renew,ui,SubscriptionsPage,SubscriptionsForm,form_auto_renew,"Auto-renew",,active
+subscriptions.form.auto_renew_hint,ui,SubscriptionsPage,SubscriptionsForm,form_auto_renew_hint,"When off, the date is treated as the final expiry.",,active
+subscriptions.form.next_billing,ui,SubscriptionsPage,SubscriptionsForm,form_next_billing,"Next renewal / expiry",,active
+subscriptions.form.error,ui,SubscriptionsPage,SubscriptionsForm,form_error,"Something went wrong. Please try again.",,active
+subscriptions.status.auto_renew,ui,SubscriptionsPage,SubscriptionsPage,status_auto_renew,"Auto-renew on",,active
+subscriptions.status.manual,ui,SubscriptionsPage,SubscriptionsPage,status_manual,"Auto-renew off",,active
+subscriptions.label.renews_at,ui,SubscriptionsPage,SubscriptionsPage,label_renews_at,"Next renewal",,active
+subscriptions.label.expires_at,ui,SubscriptionsPage,SubscriptionsPage,label_expires_at,"Expires",,active
+subscriptions.countdown,ui,SubscriptionsPage,SubscriptionsPage,countdown,"in {{days}}d {{hours}}h {{minutes}}m",,active
+subscriptions.expired,ui,SubscriptionsPage,SubscriptionsPage,expired,"Expired",,active
+subscriptions.empty.title,ui,SubscriptionsPage,SubscriptionsPage,empty_title,"No subscriptions yet",,active
+subscriptions.empty.body,ui,SubscriptionsPage,SubscriptionsPage,empty_body,"Add a plan to keep an eye on its next renewal or expiry date.",,active
+subscriptions.load_error,ui,SubscriptionsPage,SubscriptionsPage,load_error,"Failed to load subscriptions.",,active
