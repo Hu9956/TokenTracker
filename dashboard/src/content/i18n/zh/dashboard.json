@@ -544,8 +544,6 @@
   "dashboard.context_breakdown.heading_claude": "Claude 上下文细分",
   "dashboard.context_breakdown.heading_codex": "Codex 上下文细分",
   "dashboard.context_breakdown.heading_grok": "Grok 上下文细分",
-  "subscriptions.page.title": "订阅管理",
-  "subscriptions.page.subtitle": "记录 AI 服务套餐的续费与到期时间。",
   "subscriptions.add": "添加订阅",
   "subscriptions.edit": "编辑",
   "subscriptions.delete": "删除",
@@ -567,5 +565,10 @@
   "subscriptions.expired": "已到期",
   "subscriptions.empty.title": "还没有订阅",
   "subscriptions.empty.body": "添加一条套餐，随时关注它的下次续费或到期时间。",
-  "subscriptions.load_error": "加载订阅失败。"
+  "subscriptions.load_error": "加载订阅失败。",
+  "subscriptions.inline.label": "订阅",
+  "subscriptions.badge.auto_renew": "自动续费",
+  "subscriptions.badge.stops": "到期停止",
+  "subscriptions.form.provider": "关联工具",
+  "subscriptions.form.provider_none": "不关联"
 }

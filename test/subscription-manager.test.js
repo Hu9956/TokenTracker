@@ -116,14 +116,28 @@ test("createSubscription validates required fields", async () => {
       createSubscription({ trackerDir, fields: { ...VALID_FIELDS, nextBillingAt: "not-a-date" } }),
       /nextBillingAt must be a valid date/,
     );
-    // plan is optional and blank normalizes to null.
+    await assert.rejects(
+      createSubscription({ trackerDir, fields: { ...VALID_FIELDS, provider: 123 } }),
+      /provider must be a string/,
+    );
+    await assert.rejects(
+      createSubscription({ trackerDir, fields: { ...VALID_FIELDS, provider: "x".repeat(65) } }),
+      /provider must be at most 64 characters/,
+    );
+    // plan and provider are optional and blank normalizes to null.
     const created = await createSubscription({
       trackerDir,
-      fields: { ...VALID_FIELDS, plan: "   " },
+      fields: { ...VALID_FIELDS, plan: "   ", provider: "  " },
     });
     assert.equal(created.plan, null);
+    assert.equal(created.provider, null);
+    const withProvider = await createSubscription({
+      trackerDir,
+      fields: { ...VALID_FIELDS, service: "Codex", provider: "codex" },
+    });
+    assert.equal(withProvider.provider, "codex");
     const listed = await listSubscriptions({ trackerDir });
-    assert.equal(listed.length, 1);
+    assert.equal(listed.length, 2);
   } finally {
     await fs.rm(trackerDir, { recursive: true, force: true });
   }

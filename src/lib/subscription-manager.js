@@ -15,7 +15,7 @@ function resolveSubscriptionsPath(trackerDir) {
   return path.join(trackerDir, STORE_FILE);
 }
 
-function normalizeText(value, { required, field }) {
+function normalizeText(value, { required, field, maxLength = MAX_TEXT_LENGTH } = {}) {
   if (value === null || value === undefined) {
     if (required) throw new Error(`${field} is required`);
     return null;
@@ -26,8 +26,8 @@ function normalizeText(value, { required, field }) {
     if (required) throw new Error(`${field} is required`);
     return null;
   }
-  if (trimmed.length > MAX_TEXT_LENGTH) {
-    throw new Error(`${field} must be at most ${MAX_TEXT_LENGTH} characters`);
+  if (trimmed.length > maxLength) {
+    throw new Error(`${field} must be at most ${maxLength} characters`);
   }
   return trimmed;
 }
@@ -60,6 +60,14 @@ function normalizeSubscriptionFields(fields) {
   return {
     service: normalizeText(fields.service, { required: true, field: "service" }),
     plan: normalizeText(fields.plan ?? null, { required: false, field: "plan" }),
+    // Optional link to a usage-limits provider row (e.g. "codex"). The value
+    // is a limits provider id but is not validated against the canonical list
+    // here — the backend stays lenient, the dropdown constrains it in the UI.
+    provider: normalizeText(fields.provider ?? null, {
+      required: false,
+      field: "provider",
+      maxLength: 64,
+    }),
     autoRenew: fields.autoRenew,
     nextBillingAt: normalizeBillingTime(fields.nextBillingAt),
   };

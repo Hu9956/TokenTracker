@@ -1472,9 +1472,6 @@ landing.v3.how.scene.files_changed,landing,LandingPage,HowItWorksSection,scene_f
 landing.v3.how.scene.session_title,landing,LandingPage,HowItWorksSection,scene_session_title,"session log · last turn",,active
 landing.v3.how.scene.appended,landing,LandingPage,HowItWorksSection,scene_appended,"appended locally",,active
 landing.v3.how.scene.total_tokens,landing,LandingPage,HowItWorksSection,scene_total_tokens,"total tokens",,active
-nav.subscriptions,shared,*,Sidebar,nav_subscriptions,"Subscriptions",,active
-subscriptions.page.title,ui,SubscriptionsPage,SubscriptionsPage,title,"Subscriptions",,active
-subscriptions.page.subtitle,ui,SubscriptionsPage,SubscriptionsPage,subtitle,"Track renewal and expiry dates for your AI service plans.",,active
 subscriptions.add,ui,SubscriptionsPage,SubscriptionsPage,add,"Add subscription",,active
 subscriptions.edit,ui,SubscriptionsPage,SubscriptionsPage,edit,"Edit",,active
 subscriptions.delete,ui,SubscriptionsPage,SubscriptionsPage,delete,"Delete",,active
@@ -1497,3 +1494,9 @@ subscriptions.expired,ui,SubscriptionsPage,SubscriptionsPage,expired,"Expired",,
 subscriptions.empty.title,ui,SubscriptionsPage,SubscriptionsPage,empty_title,"No subscriptions yet",,active
 subscriptions.empty.body,ui,SubscriptionsPage,SubscriptionsPage,empty_body,"Add a plan to keep an eye on its next renewal or expiry date.",,active
 subscriptions.load_error,ui,SubscriptionsPage,SubscriptionsPage,load_error,"Failed to load subscriptions.",,active
+subscriptions.inline.label,ui,SubscriptionsPage,SubscriptionsPage,inline_label,"Subscription",,active
+subscriptions.badge.auto_renew,ui,SubscriptionsPage,SubscriptionsPage,badge_auto_renew,"Auto-renew",,active
+subscriptions.badge.stops,ui,SubscriptionsPage,SubscriptionsPage,badge_stops,"Stops at expiry",,active
+subscriptions.form.provider,ui,SubscriptionsPage,SubscriptionsForm,form_provider,"Linked tool",,active
+subscriptions.form.provider_none,ui,SubscriptionsPage,SubscriptionsForm,form_provider_none,"Not linked",,active
+limits.page.openSubscriptions,ui,LimitsPage,LimitsPage,open_subscriptions,"Subscriptions",,active

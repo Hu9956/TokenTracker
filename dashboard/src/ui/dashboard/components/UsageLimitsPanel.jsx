@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Card } from "../../components";
 import { FadeIn } from "../../foundation/FadeIn.jsx";
 import { copy, getCopyLocale } from "../../../lib/copy";
@@ -13,6 +13,7 @@ import { ProviderIcon } from "./ProviderIcon.jsx";
 import { buildResetBankRows } from "./usage-limits-reset-bank.js";
 import { PROVIDER_LIMIT_SPECS } from "./usage-limits-provider-specs.js";
 import { HoverTooltip } from "../../components/HoverTooltip.jsx";
+import { countdownText, cycleMetrics } from "../../../lib/subscription-display.js";
 
 const LIMITS_PROVIDER_ICON_CLASS = "shrink-0 text-oai-black dark:text-oai-white";
 
@@ -211,7 +212,7 @@ function rowHasPaceMarker({ pace }) {
   return pace.pacePercent != null;
 }
 
-function LimitDetail({ rows, mode }) {
+function LimitDetail({ rows, mode, subscription = null, now = Date.now() }) {
   if (rows.length === 0) return null;
   const remaining = mode === LIMIT_DISPLAY_MODES.REMAINING;
   const hasPaceMarker = rows.some(rowHasPaceMarker);
@@ -233,6 +234,7 @@ function LimitDetail({ rows, mode }) {
           </div>
         );
       })}
+      {subscription ? <SubscriptionDetail subscription={subscription} now={now} /> : null}
       {hasPaceMarker ? (
         <div className="mt-1 pt-1.5 border-t border-oai-gray-200/70 dark:border-oai-gray-700/50 text-[10.5px] leading-snug text-oai-gray-400 dark:text-oai-gray-500">
           {copy(remaining ? "limits.explain.body_remaining" : "limits.explain.body")}
@@ -306,7 +308,7 @@ function StatusBadge({ label, age = null, tone = "live", tooltip = null }) {
   );
 }
 
-function ToolGroup({ name, providerId, children, expandable = false, expanded = false, onToggle, badge = null }) {
+function ToolGroup({ name, providerId, children, expandable = false, expanded = false, onToggle, badge = null, rightAdornment = null }) {
   const providerKey = limitProviderIconKey(providerId);
   const header = (
     <div className="flex items-center gap-1.5">
@@ -315,6 +317,7 @@ function ToolGroup({ name, providerId, children, expandable = false, expanded = 
       ) : null}
       <span className="text-sm font-medium text-oai-black dark:text-oai-white">{name}</span>
       {badge}
+      {rightAdornment ? <span className="ml-auto shrink-0">{rightAdornment}</span> : null}
     </div>
   );
 
@@ -343,6 +346,113 @@ function ToolGroup({ name, providerId, children, expandable = false, expanded = 
     >
       {header}
       {children}
+    </div>
+  );
+}
+
+// Top-right auto-renew / stops-at-expiry badge. Distinct from the left-aligned
+// data-status badge so antigravity/qoder cache state and subscription state can
+// both show on the same row.
+function SubscriptionRightBadge({ subscription }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold border leading-normal ${
+        subscription.autoRenew
+          ? "bg-oai-brand-50 text-oai-brand-700 border-oai-brand-200 dark:bg-oai-brand-950 dark:text-oai-brand-300 dark:border-oai-brand-800"
+          : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800"
+      }`}
+    >
+      {subscription.autoRenew
+        ? copy("subscriptions.badge.auto_renew")
+        : copy("subscriptions.badge.stops")}
+    </span>
+  );
+}
+
+// Inline subscription progress bar, rendered under the limit bars of a linked
+// provider. Reuses the same label column width as the limit bars so their
+// tracks line up, and mirrors the limit bar's pct + reset columns on the right.
+function formatSubscriptionRemaining(nextBillingAt, now) {
+  const diff = new Date(nextBillingAt).getTime() - now;
+  if (diff <= 0) return "0d";
+  const m = Math.floor(diff / 60000);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+
+function SubscriptionBar({ subscription, now }) {
+  const endMs = new Date(subscription.nextBillingAt).getTime();
+  const expired = endMs <= now;
+  const nearExpiry = !expired && endMs - now <= 3 * 86400000;
+  const { progress } = cycleMetrics(subscription.nextBillingAt, now);
+  const widthPct = expired ? 100 : progress * 100;
+  const rounded = Math.round(widthPct);
+  const labelPct =
+    widthPct > 0 && rounded === 0 ? copy("limits.bar.sub_one_percent") : `${rounded}%`;
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className="text-[11px] text-oai-gray-500 dark:text-oai-gray-400 shrink-0 whitespace-nowrap"
+        style={{ width: "var(--tt-limits-label-w)" }}
+      >
+        {copy("subscriptions.inline.label")}
+      </span>
+      <div className="relative flex-1 bg-oai-gray-100 dark:bg-oai-gray-700/50 rounded-full h-1.5 overflow-hidden">
+        <div
+          className={`${
+            expired ? "bg-red-500" : nearExpiry ? "bg-amber-500" : "bg-oai-brand-500"
+          } rounded-full h-full block transition-[width] duration-500 ease-out`}
+          style={{ width: `${widthPct}%`, minWidth: widthPct > 0 ? "3px" : 0 }}
+        />
+      </div>
+      <span className="text-[11px] tabular-nums text-oai-gray-500 dark:text-oai-gray-400 w-9 text-right shrink-0 whitespace-nowrap">
+        {labelPct}
+      </span>
+      <span
+        className={`text-[10px] tabular-nums shrink-0 whitespace-nowrap w-6 text-right ${
+          expired ? "text-oai-error" : "text-oai-gray-400 dark:text-oai-gray-500"
+        }`}
+      >
+        {formatSubscriptionRemaining(subscription.nextBillingAt, now)}
+      </span>
+    </div>
+  );
+}
+
+function SubscriptionDetail({ subscription, now }) {
+  const expired = new Date(subscription.nextBillingAt).getTime() <= now;
+  const dateFormat = new Intl.DateTimeFormat(getCopyLocale(), {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return (
+    <div className="text-[11px] leading-snug text-oai-gray-500 dark:text-oai-gray-400">
+      <span>{copy("subscriptions.inline.label")}</span>
+      <span className="text-oai-gray-300 dark:text-oai-gray-600">：</span>
+      <span>
+        {subscription.autoRenew
+          ? copy("subscriptions.label.renews_at")
+          : copy("subscriptions.label.expires_at")}
+      </span>
+      <span> </span>
+      <span className="font-mono tabular-nums">
+        {dateFormat.format(new Date(subscription.nextBillingAt))}
+      </span>
+      <span className="text-oai-gray-300 dark:text-oai-gray-600"> · </span>
+      <span className={expired ? "text-oai-error" : undefined}>
+        {countdownText(subscription.nextBillingAt, now)}
+      </span>
+      <span className="text-oai-gray-300 dark:text-oai-gray-600"> · </span>
+      <span>
+        {subscription.autoRenew
+          ? copy("subscriptions.status.auto_renew")
+          : copy("subscriptions.status.manual")}
+      </span>
     </div>
   );
 }
@@ -464,7 +574,7 @@ function renderProviderExtra(kind, data) {
   return null;
 }
 
-function renderConfiguredProvider(id, data, title, mode, expanded, onToggle, badge = null) {
+function renderConfiguredProvider(id, data, title, mode, expanded, onToggle, badge = null, subscription = null, now = Date.now()) {
   const spec = PROVIDER_LIMIT_SPECS[id];
   if (!spec) return null;
   // Pace is computed once per window here and shared by the bar + the detail.
@@ -474,14 +584,24 @@ function renderConfiguredProvider(id, data, title, mode, expanded, onToggle, bad
     .map((s) => ({ spec: s, pace: paceForSpec(s, mode) }));
   const extra = renderProviderExtra(spec.extra, data);
   return (
-    <ToolGroup key={id} name={title} providerId={id} expandable={rows.length > 0} expanded={expanded} onToggle={onToggle} badge={badge}>
+    <ToolGroup
+      key={id}
+      name={title}
+      providerId={id}
+      expandable={rows.length > 0}
+      expanded={expanded}
+      onToggle={onToggle}
+      badge={badge}
+      rightAdornment={subscription ? <SubscriptionRightBadge subscription={subscription} /> : null}
+    >
       <LimitWindowSection mode={mode} rows={rows} extra={extra} />
-      {expanded ? <LimitDetail rows={rows} mode={mode} /> : null}
+      {subscription ? <SubscriptionBar subscription={subscription} now={now} /> : null}
+      {expanded ? <LimitDetail rows={rows} mode={mode} subscription={subscription} now={now} /> : null}
     </ToolGroup>
   );
 }
 
-function renderProviderGroup(id, data, mode, expanded, onToggle) {
+function renderProviderGroup(id, data, mode, expanded, onToggle, subscription = null, now = Date.now()) {
   if (!PROVIDER_LIMIT_SPECS[id]) return null;
   if (!data?.configured) {
     return (
@@ -559,7 +679,7 @@ function renderProviderGroup(id, data, mode, expanded, onToggle) {
       tooltip={copy("limits.provenance.tooltip", { source: provenance.source, confidence: provenance.confidence })}
     />;
   }
-  return renderConfiguredProvider(id, data, title, mode, expanded, onToggle, badge);
+  return renderConfiguredProvider(id, data, title, mode, expanded, onToggle, badge, subscription, now);
 }
 
 function CopilotOtelHint({ defaultDir }) {
@@ -719,11 +839,12 @@ function useWidestLabelWidth(containerRef) {
   return labelWidth;
 }
 
-export function UsageLimitsPanel({ claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode, opencodeGo, qoder, qoderCn, order, visibility, displayMode }) {
+export function UsageLimitsPanel({ claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode, opencodeGo, qoder, qoderCn, order, visibility, displayMode, subscriptions = [] }) {
   const dataById = { claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode, opencodeGo, qoder, qoderCn };
   const containerRef = useRef(null);
   const labelWidth = useWidestLabelWidth(containerRef);
   const [expandedId, setExpandedId] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
   const effectiveOrder = Array.isArray(order) && order.length > 0 ? order : DEFAULT_ORDER;
   const effectiveMode = displayMode === LIMIT_DISPLAY_MODES.REMAINING
     ? LIMIT_DISPLAY_MODES.REMAINING
@@ -732,17 +853,36 @@ export function UsageLimitsPanel({ claude, codex, cursor, gemini, kimi, kiro, gr
     ? copy("limits.settings.display_mode_remaining")
     : copy("limits.settings.display_mode_used");
 
+  // Refresh countdowns/remaining labels once a minute without re-fetching.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Soonest-expiring subscription per linked provider; multiple subscriptions
+  // for one tool show only the most urgent inline, managed on /subscriptions.
+  const subscriptionByProvider = new Map();
+  for (const subscription of subscriptions || []) {
+    if (!subscription?.provider) continue;
+    const existing = subscriptionByProvider.get(subscription.provider);
+    if (!existing || new Date(subscription.nextBillingAt) < new Date(existing.nextBillingAt)) {
+      subscriptionByProvider.set(subscription.provider, subscription);
+    }
+  }
+
   const groups = effectiveOrder
     .filter((id) => !visibility || visibility[id] !== false)
-    .map((id) =>
-      renderProviderGroup(
+    .map((id) => {
+      return renderProviderGroup(
         id,
         dataById[id],
         effectiveMode,
         expandedId === id,
         () => setExpandedId((prev) => (prev === id ? null : id)),
-      ),
-    )
+        subscriptionByProvider.get(id) || null,
+        now,
+      );
+    })
     .filter(Boolean);
 
   return (

@@ -1,18 +1,21 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
-import { Bell, BellOff, Settings as SettingsIcon } from "lucide-react";
+import { Bell, BellOff, CalendarClock, Settings as SettingsIcon } from "lucide-react";
+import { Popover } from "@base-ui/react/popover";
 import { useUsageLimits } from "../hooks/use-usage-limits";
 import { useLimitsDisplayPrefs } from "../hooks/use-limits-display-prefs.js";
 import { copy } from "../lib/copy";
 import { LimitsPageSkeleton } from "../components/LimitsPageSkeleton.jsx";
 import { UsageLimitsPanel } from "../ui/dashboard/components/UsageLimitsPanel.jsx";
+import { SubscriptionSettingsCard } from "../ui/dashboard/components/SubscriptionSettingsCard.jsx";
 import { LocalOnlyNotice } from "../components/LocalOnlyNotice.jsx";
 import { isMockEnabled } from "../lib/mock-data";
 import { readUsageLimitsPreloadState } from "../lib/dashboard-preload.js";
 import { useLimitAlertPrefs } from "../hooks/use-limit-alert-prefs";
 import { sendPredictiveLimitAlerts } from "../lib/limit-alerts.js";
 import { isNativeEmbed, postNativeMessage } from "../lib/native-bridge.js";
+import { listSubscriptions } from "../lib/subscription-manager-api";
 
 const IS_LOCAL_HOST =
   typeof window !== "undefined" &&
@@ -69,6 +72,26 @@ export function LimitsPage() {
   );
   const prefs = useLimitsDisplayPrefs();
   const alerts = useLimitAlertPrefs();
+  const [subscriptions, setSubscriptions] = React.useState([]);
+  const [subscriptionsOpen, setSubscriptionsOpen] = React.useState(false);
+  const subscriptionRefreshRef = React.useRef(0);
+
+  const refreshSubscriptions = React.useCallback(async () => {
+    // The subscription store only exists on the local CLI; skip the fetch on
+    // the public host where the endpoint would 404.
+    if (!IS_LOCAL_HOST && !isMockEnabled()) return;
+    const requestId = ++subscriptionRefreshRef.current;
+    try {
+      const rows = await listSubscriptions();
+      if (requestId === subscriptionRefreshRef.current) setSubscriptions(rows);
+    } catch (_e) {
+      if (requestId === subscriptionRefreshRef.current) setSubscriptions([]);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void refreshSubscriptions();
+  }, [refreshSubscriptions]);
 
   React.useEffect(() => {
     if (alerts.enabled && usageLimits) sendPredictiveLimitAlerts(usageLimits);
@@ -100,6 +123,25 @@ export function LimitsPage() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {alerts.enabled && alerts.permissionBlocked ? <NotificationBlockedBubble /> : null}
+              <Popover.Root open={subscriptionsOpen} onOpenChange={setSubscriptionsOpen}>
+                <Popover.Trigger
+                  aria-label={copy("limits.page.openSubscriptions")}
+                  title={copy("limits.page.openSubscriptions")}
+                  className="shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-oai-gray-200 dark:border-oai-gray-800 text-oai-gray-600 dark:text-oai-gray-400 hover:bg-oai-gray-100 dark:hover:bg-oai-gray-800 hover:text-oai-black dark:hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500"
+                >
+                  <CalendarClock className="h-4 w-4" aria-hidden />
+                </Popover.Trigger>
+                <Popover.Portal>
+                  <Popover.Positioner side="bottom" align="end" sideOffset={8} className="z-50">
+                    <Popover.Popup>
+                      <SubscriptionSettingsCard
+                        subscriptions={subscriptions}
+                        onChanged={refreshSubscriptions}
+                      />
+                    </Popover.Popup>
+                  </Popover.Positioner>
+                </Popover.Portal>
+              </Popover.Root>
               <button
                 type="button"
                 onClick={() => void alerts.setEnabled(!alerts.enabled)}
@@ -150,6 +192,7 @@ export function LimitsPage() {
                 order={prefs.order}
                 visibility={prefs.visibility}
                 displayMode={prefs.displayMode}
+                subscriptions={subscriptions}
               />
             </>
           )}

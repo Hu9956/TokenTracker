@@ -3,7 +3,6 @@ import { Link, useLocation } from "react-router-dom";
 import {
   Award,
   BarChart3,
-  CalendarClock,
   Gauge,
   Trophy,
   History,
@@ -42,7 +41,6 @@ export function getNavGroups() {
         { id: "usage", to: "/dashboard", icon: BarChart3, label: copy("nav.usage") },
         { id: "sessions", to: "/sessions", icon: History, label: copy("nav.sessions") },
         { id: "limits", to: "/limits", icon: Gauge, label: copy("nav.limits") },
-        { id: "subscriptions", to: "/subscriptions", icon: CalendarClock, label: copy("nav.subscriptions") },
         { id: "leaderboard", to: "/leaderboard", icon: Trophy, label: copy("nav.leaderboard") },
         { id: "achievements", to: "/achievements", icon: Award, label: copy("nav.achievements") },
       ],
