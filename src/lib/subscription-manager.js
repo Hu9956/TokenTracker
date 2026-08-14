@@ -95,55 +95,78 @@ function sortByNextBillingAt(items) {
   );
 }
 
+// In-process FIFO queue per store file. Every mutation is a full
+// read-modify-write transaction; without serialization two concurrent writes
+// read the same snapshot and the later one silently drops the earlier change
+// (issue: 30 concurrent creates survived as a single record). The queue keeps
+// independent store files unblocked while ordering operations on the same one.
+const storeLocks = new Map();
+
+function withStoreLock(filePath, operation) {
+  const previous = storeLocks.get(filePath) || Promise.resolve();
+  // Run even if the previous transaction rejected; its error already reached
+  // its own caller and must not wedge the queue.
+  const run = previous.then(operation, operation);
+  storeLocks.set(filePath, run.then(() => undefined, () => undefined));
+  return run;
+}
+
 async function listSubscriptions({ trackerDir }) {
   const store = await readStore(resolveSubscriptionsPath(trackerDir));
   return sortByNextBillingAt(store.items);
 }
 
 async function createSubscription({ trackerDir, fields }) {
+  // Validate before taking the lock so a bad payload never queues a write.
   const normalized = normalizeSubscriptionFields(fields);
-  const now = new Date().toISOString();
-  const record = {
-    id: crypto.randomUUID(),
-    ...normalized,
-    createdAt: now,
-    updatedAt: now,
-  };
   const filePath = resolveSubscriptionsPath(trackerDir);
-  const store = await readStore(filePath);
-  store.items.push(record);
-  await writeStore(filePath, store);
-  return record;
+  return withStoreLock(filePath, async () => {
+    const now = new Date().toISOString();
+    const record = {
+      id: crypto.randomUUID(),
+      ...normalized,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const store = await readStore(filePath);
+    store.items.push(record);
+    await writeStore(filePath, store);
+    return record;
+  });
 }
 
 async function updateSubscription({ trackerDir, id, fields }) {
   if (typeof id !== "string" || !id) throw new Error("id is required");
   const filePath = resolveSubscriptionsPath(trackerDir);
-  const store = await readStore(filePath);
-  const index = store.items.findIndex((item) => item.id === id);
-  if (index === -1) throw new Error("Subscription not found");
-  const existing = store.items[index];
-  // Merge over the existing record so callers may send only changed fields.
-  const merged = normalizeSubscriptionFields({ ...existing, ...(fields || {}) });
-  const record = {
-    ...existing,
-    ...merged,
-    updatedAt: new Date().toISOString(),
-  };
-  store.items[index] = record;
-  await writeStore(filePath, store);
-  return record;
+  return withStoreLock(filePath, async () => {
+    const store = await readStore(filePath);
+    const index = store.items.findIndex((item) => item.id === id);
+    if (index === -1) throw new Error("Subscription not found");
+    const existing = store.items[index];
+    // Merge over the existing record so callers may send only changed fields.
+    const merged = normalizeSubscriptionFields({ ...existing, ...(fields || {}) });
+    const record = {
+      ...existing,
+      ...merged,
+      updatedAt: new Date().toISOString(),
+    };
+    store.items[index] = record;
+    await writeStore(filePath, store);
+    return record;
+  });
 }
 
 async function deleteSubscription({ trackerDir, id }) {
   if (typeof id !== "string" || !id) throw new Error("id is required");
   const filePath = resolveSubscriptionsPath(trackerDir);
-  const store = await readStore(filePath);
-  const index = store.items.findIndex((item) => item.id === id);
-  if (index === -1) throw new Error("Subscription not found");
-  store.items.splice(index, 1);
-  await writeStore(filePath, store);
-  return { removed: true };
+  return withStoreLock(filePath, async () => {
+    const store = await readStore(filePath);
+    const index = store.items.findIndex((item) => item.id === id);
+    if (index === -1) throw new Error("Subscription not found");
+    store.items.splice(index, 1);
+    await writeStore(filePath, store);
+    return { removed: true };
+  });
 }
 
 module.exports = {

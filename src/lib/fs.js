@@ -9,7 +9,9 @@ async function ensureDir(p) {
 async function writeFileAtomic(filePath, content) {
   const dir = path.dirname(filePath);
   await ensureDir(dir);
-  const tmp = `${filePath}.tmp.${Date.now()}`;
+  // Include a UUID so two writes in the same millisecond do not share a tmp
+  // path (Date.now() alone collides under concurrent writers).
+  const tmp = `${filePath}.tmp.${Date.now()}.${crypto.randomUUID()}`;
   await fs.writeFile(tmp, content, { encoding: "utf8" });
   await fs.rename(tmp, filePath);
 }

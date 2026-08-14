@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarClock, Pencil, Plus, Trash2 } from "lucide-react";
 import { copy, getCopyLocale } from "../lib/copy";
 import { isMockEnabled } from "../lib/mock-data";
@@ -51,6 +51,10 @@ export function SubscriptionsPage() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  // Monotonic generation for in-flight refreshes. A response may only apply
+  // its result if it belongs to the newest refresh; otherwise a slow GET that
+  // started before a create/edit/delete could overwrite the fresher list.
+  const refreshRequestIdRef = useRef(0);
 
   const dateFormat = useMemo(
     () =>
@@ -65,13 +69,17 @@ export function SubscriptionsPage() {
   );
 
   const refresh = useCallback(async () => {
+    const requestId = ++refreshRequestIdRef.current;
     try {
-      setSubscriptions(await listSubscriptions());
+      const next = await listSubscriptions();
+      if (requestId !== refreshRequestIdRef.current) return;
+      setSubscriptions(next);
       setLoadError(false);
     } catch (_e) {
+      if (requestId !== refreshRequestIdRef.current) return;
       setLoadError(true);
     } finally {
-      setLoading(false);
+      if (requestId === refreshRequestIdRef.current) setLoading(false);
     }
   }, []);
 

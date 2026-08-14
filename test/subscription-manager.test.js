@@ -233,3 +233,89 @@ test("update and delete reject unknown ids", async () => {
     await fs.rm(trackerDir, { recursive: true, force: true });
   }
 });
+
+test("30 concurrent creates are serialized and none are lost", async () => {
+  const trackerDir = await makeTrackerDir("tt-subscription-manager-concurrent-create-");
+  try {
+    // Reproduces the review repro: before the per-file lock, concurrent
+    // read-modify-write cycles collapsed ~30 creates into a single record.
+    const created = await Promise.all(
+      Array.from({ length: 30 }, (_, i) =>
+        createSubscription({
+          trackerDir,
+          fields: {
+            ...VALID_FIELDS,
+            service: `Service ${i}`,
+            nextBillingAt: Date.UTC(2026, 7, 16, 6, 0) + i * 60000,
+          },
+        }),
+      ),
+    );
+    assert.equal(created.length, 30);
+
+    const listed = await listSubscriptions({ trackerDir });
+    assert.equal(listed.length, 30);
+    assert.equal(new Set(listed.map((s) => s.id)).size, 30);
+    assert.equal(new Set(listed.map((s) => s.service)).size, 30);
+  } finally {
+    await fs.rm(trackerDir, { recursive: true, force: true });
+  }
+});
+
+test("interleaved updates and deletes stay consistent", async () => {
+  const trackerDir = await makeTrackerDir("tt-subscription-manager-concurrent-mix-");
+  try {
+    const records = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        createSubscription({
+          trackerDir,
+          fields: { ...VALID_FIELDS, service: `Service ${i}` },
+        }),
+      ),
+    );
+    const ids = records.map((r) => r.id);
+
+    // Delete records 0/2/4 while repeatedly updating 1/3, all in flight at once.
+    const ops = [];
+    for (const id of [ids[0], ids[2], ids[4]]) {
+      ops.push(deleteSubscription({ trackerDir, id }));
+    }
+    for (let round = 0; round < 5; round += 1) {
+      for (const id of [ids[1], ids[3]]) {
+        ops.push(updateSubscription({ trackerDir, id, fields: { plan: `Plan ${round}` } }));
+      }
+    }
+    const results = await Promise.allSettled(ops);
+    for (const result of results) assert.equal(result.status, "fulfilled");
+
+    const listed = await listSubscriptions({ trackerDir });
+    assert.deepEqual(listed.map((s) => s.id).sort(), [ids[1], ids[3]].sort());
+    // No deleted record may be resurrected by a racing write.
+    for (const removed of [ids[0], ids[2], ids[4]]) {
+      assert.ok(!listed.some((s) => s.id === removed));
+    }
+    for (const item of listed) assert.equal(item.plan, "Plan 4");
+  } finally {
+    await fs.rm(trackerDir, { recursive: true, force: true });
+  }
+});
+
+test("a queued update cannot resurrect a record deleted before it", async () => {
+  const trackerDir = await makeTrackerDir("tt-subscription-manager-order-");
+  try {
+    const record = await createSubscription({ trackerDir, fields: VALID_FIELDS });
+    // The delete is queued first, so the following update must see the record
+    // as gone rather than rewriting a store snapshot taken before the delete.
+    const deleteOp = deleteSubscription({ trackerDir, id: record.id });
+    const updateOp = updateSubscription({
+      trackerDir,
+      id: record.id,
+      fields: { plan: "Should not stick" },
+    });
+    await deleteOp;
+    await assert.rejects(updateOp, /Subscription not found/);
+    assert.deepEqual(await listSubscriptions({ trackerDir }), []);
+  } finally {
+    await fs.rm(trackerDir, { recursive: true, force: true });
+  }
+});

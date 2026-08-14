@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createSubscription,
@@ -130,5 +130,77 @@ describe("SubscriptionsPage", () => {
     await waitFor(() => {
       expect(deleteSubscription).toHaveBeenCalledWith("sub-1");
     });
+  });
+
+  async function createThroughForm(service) {
+    fireEvent.click(screen.getByText("Add subscription"));
+    fireEvent.change(screen.getByLabelText("Service"), { target: { value: service } });
+    fireEvent.change(screen.getByLabelText("Next renewal / expiry"), {
+      target: { value: "2026-08-16T14:00" },
+    });
+    fireEvent.click(screen.getByText("Save"));
+  }
+
+  it("ignores a stale list response that resolves after a newer refresh", async () => {
+    const pending = [];
+    listSubscriptions.mockImplementation(
+      () => new Promise((resolve, reject) => pending.push({ resolve, reject })),
+    );
+    createSubscription.mockResolvedValue(makeSubscription({ id: "sub-new", service: "Fresh" }));
+
+    render(<SubscriptionsPage />);
+
+    // Initial load is request #1 — keep it in flight.
+    await waitFor(() => expect(listSubscriptions).toHaveBeenCalledTimes(1));
+
+    // Saving triggers refresh request #2 while #1 is still pending.
+    await createThroughForm("Fresh");
+    await waitFor(() => expect(listSubscriptions).toHaveBeenCalledTimes(2));
+
+    // The newer response lands first.
+    const fresh = makeSubscription({ id: "sub-new", service: "Fresh" });
+    await act(async () => {
+      pending[1].resolve([fresh]);
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Fresh")).toBeInTheDocument();
+    });
+
+    // The stale initial-load response resolves late and must be ignored.
+    await act(async () => {
+      pending[0].resolve([]);
+    });
+    expect(screen.getByText("Fresh")).toBeInTheDocument();
+    expect(screen.queryByText("No subscriptions yet")).not.toBeInTheDocument();
+  });
+
+  it("ignores a stale refresh error after a newer successful refresh", async () => {
+    const pending = [];
+    listSubscriptions.mockImplementation(
+      () => new Promise((resolve, reject) => pending.push({ resolve, reject })),
+    );
+    createSubscription.mockResolvedValue(makeSubscription({ id: "sub-new", service: "Fresh" }));
+
+    render(<SubscriptionsPage />);
+
+    await waitFor(() => expect(listSubscriptions).toHaveBeenCalledTimes(1));
+
+    await createThroughForm("Fresh");
+    await waitFor(() => expect(listSubscriptions).toHaveBeenCalledTimes(2));
+
+    const fresh = makeSubscription({ id: "sub-new", service: "Fresh" });
+    await act(async () => {
+      pending[1].resolve([fresh]);
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Fresh")).toBeInTheDocument();
+    });
+
+    // A stale rejection must not flip the page into the error state.
+    await act(async () => {
+      pending[0].reject(new Error("stale"));
+    });
+    expect(screen.getByText("Fresh")).toBeInTheDocument();
+    expect(screen.queryByText("Failed to load subscriptions.")).not.toBeInTheDocument();
   });
 });
