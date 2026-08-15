@@ -73,6 +73,7 @@ export function LimitsPage() {
   const prefs = useLimitsDisplayPrefs();
   const alerts = useLimitAlertPrefs();
   const [subscriptions, setSubscriptions] = React.useState([]);
+  const [subscriptionsError, setSubscriptionsError] = React.useState(false);
   const [subscriptionsOpen, setSubscriptionsOpen] = React.useState(false);
   const subscriptionRefreshRef = React.useRef(0);
 
@@ -83,9 +84,16 @@ export function LimitsPage() {
     const requestId = ++subscriptionRefreshRef.current;
     try {
       const rows = await listSubscriptions();
-      if (requestId === subscriptionRefreshRef.current) setSubscriptions(rows);
+      // A stale response (e.g. the refresh after a save raced an older GET)
+      // must not overwrite the newer state.
+      if (requestId !== subscriptionRefreshRef.current) return;
+      setSubscriptions(rows);
+      setSubscriptionsError(false);
     } catch (_e) {
-      if (requestId === subscriptionRefreshRef.current) setSubscriptions([]);
+      if (requestId !== subscriptionRefreshRef.current) return;
+      // Keep the rows already on screen: wiping them would make a transient
+      // fetch failure look like the subscriptions were deleted.
+      setSubscriptionsError(true);
     }
   }, []);
 
@@ -173,6 +181,11 @@ export function LimitsPage() {
               {error ? (
                 <p className="mb-4 text-sm text-red-500 dark:text-red-400">
                   {copy("shared.error.prefix", { error })}
+                </p>
+              ) : null}
+              {subscriptionsError ? (
+                <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">
+                  {copy("subscriptions.load_error")}
                 </p>
               ) : null}
               <UsageLimitsPanel

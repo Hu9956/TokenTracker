@@ -83,7 +83,14 @@ describe("SubscriptionSettingsCard", () => {
     fireEvent.change(screen.getByLabelText("Next renewal / expiry"), {
       target: { value: "2026-08-16T14:00" },
     });
-    fireEvent.change(screen.getByLabelText("Linked tool"), { target: { value: "codex" } });
+    // The linked-tool picker is the shared Base UI Select, so open the popup
+    // and pick the option instead of firing a native change event. Base UI
+    // ignores synthetic clicks on unhovered items, so press first like a real
+    // pointer would.
+    fireEvent.click(screen.getByLabelText("Linked tool"));
+    const codexOption = await screen.findByRole("option", { name: "Codex" });
+    fireEvent.pointerDown(codexOption, { pointerType: "mouse" });
+    fireEvent.click(codexOption);
 
     fireEvent.click(screen.getByText("Save"));
 
@@ -94,6 +101,7 @@ describe("SubscriptionSettingsCard", () => {
       service: "GPT",
       plan: "Plus",
       provider: "codex",
+      cycle: "monthly",
       autoRenew: true,
       nextBillingAt: new Date("2026-08-16T14:00").getTime(),
     });

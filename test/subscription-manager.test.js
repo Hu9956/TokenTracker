@@ -61,11 +61,84 @@ test("listSubscriptions returns an empty list when the store is missing", async 
   }
 });
 
-test("listSubscriptions tolerates a corrupt store file", async () => {
+test("listSubscriptions reports a corrupt store instead of an empty list", async () => {
   const trackerDir = await makeTrackerDir("tt-subscription-manager-corrupt-");
   try {
     await fs.writeFile(resolveSubscriptionsPath(trackerDir), "{not json", "utf8");
-    assert.deepEqual(await listSubscriptions({ trackerDir }), []);
+    await assert.rejects(listSubscriptions({ trackerDir }), /corrupted/);
+  } finally {
+    await fs.rm(trackerDir, { recursive: true, force: true });
+  }
+});
+
+test("a write over a corrupt store backs the original up before replacing it", async () => {
+  const trackerDir = await makeTrackerDir("tt-subscription-manager-corrupt-write-");
+  try {
+    const storePath = resolveSubscriptionsPath(trackerDir);
+    await fs.writeFile(storePath, "{not json", "utf8");
+
+    const created = await createSubscription({ trackerDir, fields: VALID_FIELDS });
+    assert.equal(created.service, "GPT");
+
+    // The damaged original survives next to the rebuilt store.
+    const files = await fs.readdir(trackerDir);
+    const backups = files.filter((name) => name.startsWith("subscription-manager.json.corrupt-"));
+    assert.equal(backups.length, 1);
+    assert.equal(await fs.readFile(path.join(trackerDir, backups[0]), "utf8"), "{not json");
+
+    const listed = await listSubscriptions({ trackerDir });
+    assert.deepEqual(listed.map((s) => s.id), [created.id]);
+  } finally {
+    await fs.rm(trackerDir, { recursive: true, force: true });
+  }
+});
+
+test("a write refuses to touch a store it cannot read", async () => {
+  const trackerDir = await makeTrackerDir("tt-subscription-manager-unreadable-");
+  try {
+    const storePath = resolveSubscriptionsPath(trackerDir);
+    const original = JSON.stringify({
+      version: 1,
+      items: [{ ...structuredClone(VALID_FIELDS), id: "kept", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
+    });
+    await fs.writeFile(storePath, original, "utf8");
+    await fs.chmod(storePath, 0o000);
+
+    await assert.rejects(createSubscription({ trackerDir, fields: VALID_FIELDS }), /Cannot read subscription store/);
+    await fs.chmod(storePath, 0o600);
+    // The failed write left the original bytes untouched.
+    assert.equal(await fs.readFile(storePath, "utf8"), original);
+    const files = await fs.readdir(trackerDir);
+    assert.ok(!files.some((name) => name.includes(".corrupt-")));
+  } finally {
+    await fs.rm(trackerDir, { recursive: true, force: true });
+  }
+});
+
+test("records with invalid fields are filtered on read and backed up before a write", async () => {
+  const trackerDir = await makeTrackerDir("tt-subscription-manager-bad-record-");
+  try {
+    const storePath = resolveSubscriptionsPath(trackerDir);
+    const valid = {
+      ...structuredClone(VALID_FIELDS),
+      id: "valid-1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    // Missing autoRenew: must not be silently dropped by the next write.
+    const broken = { ...structuredClone(VALID_FIELDS), id: "broken-1" };
+    delete broken.autoRenew;
+    await fs.writeFile(storePath, JSON.stringify({ version: 1, items: [valid, broken] }), "utf8");
+
+    const listed = await listSubscriptions({ trackerDir });
+    assert.deepEqual(listed.map((s) => s.id), ["valid-1"]);
+
+    const created = await createSubscription({ trackerDir, fields: VALID_FIELDS });
+    const after = await listSubscriptions({ trackerDir });
+    assert.deepEqual(after.map((s) => s.id).sort(), [created.id, "valid-1"].sort());
+
+    const files = await fs.readdir(trackerDir);
+    assert.equal(files.filter((name) => name.startsWith("subscription-manager.json.corrupt-")).length, 1);
   } finally {
     await fs.rm(trackerDir, { recursive: true, force: true });
   }
@@ -138,6 +211,37 @@ test("createSubscription validates required fields", async () => {
     assert.equal(withProvider.provider, "codex");
     const listed = await listSubscriptions({ trackerDir });
     assert.equal(listed.length, 2);
+  } finally {
+    await fs.rm(trackerDir, { recursive: true, force: true });
+  }
+});
+
+test("createSubscription validates the billing cycle field", async () => {
+  const trackerDir = await makeTrackerDir("tt-subscription-manager-cycle-");
+  try {
+    await assert.rejects(
+      createSubscription({ trackerDir, fields: { ...VALID_FIELDS, cycle: "daily" } }),
+      /cycle must be one of/,
+    );
+    await assert.rejects(
+      createSubscription({ trackerDir, fields: { ...VALID_FIELDS, cycle: 7 } }),
+      /cycle must be one of/,
+    );
+    // Omitted cycle defaults to monthly (pre-cycle records keep working).
+    const monthly = await createSubscription({ trackerDir, fields: VALID_FIELDS });
+    assert.equal(monthly.cycle, "monthly");
+    const yearly = await createSubscription({
+      trackerDir,
+      fields: { ...VALID_FIELDS, cycle: "yearly" },
+    });
+    assert.equal(yearly.cycle, "yearly");
+    // Partial updates leave the recorded cycle alone.
+    const updated = await updateSubscription({
+      trackerDir,
+      id: yearly.id,
+      fields: { plan: "Max" },
+    });
+    assert.equal(updated.cycle, "yearly");
   } finally {
     await fs.rm(trackerDir, { recursive: true, force: true });
   }

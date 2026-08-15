@@ -1,46 +1,36 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarClock, Plus } from "lucide-react";
 import { copy, getCopyLocale } from "../../../lib/copy";
-import { Button, ConfirmModal, Input } from "../../components";
+import { Button, ConfirmModal, Input, Select } from "../../components";
 import { ProviderIcon } from "./ProviderIcon.jsx";
-import { countdownText, cycleMetrics, remainingLabel } from "../../../lib/subscription-display";
-import { LIMIT_PROVIDER_IDS, limitProviderName } from "../../../lib/limits-providers.js";
+import { countdownText, cycleView, remainingLabel } from "../../../lib/subscription-display";
+import {
+  LIMIT_PROVIDER_IDS,
+  limitProviderIconKey,
+  limitProviderName,
+} from "../../../lib/limits-providers.js";
 import {
   createSubscription,
   deleteSubscription,
   updateSubscription,
 } from "../../../lib/subscription-manager-api";
 
-const EMPTY_FORM = { service: "", plan: "", provider: "", autoRenew: true, nextBillingAt: "" };
+const EMPTY_FORM = {
+  service: "",
+  plan: "",
+  provider: "",
+  cycle: "monthly",
+  autoRenew: true,
+  nextBillingAt: "",
+};
 
-function toDatetimeLocalValue(isoString) {
+// datetime-local values are local-time; the stored record is UTC. This is the
+// display side of the round trip (openEdit → input → new Date() on submit).
+export function toDatetimeLocalValue(isoString) {
   const date = new Date(isoString);
   if (Number.isNaN(date.getTime())) return "";
   const pad = (n) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-// Free-text service names map onto the shared provider icon set; anything
-// unrecognized falls back to ProviderIcon's placeholder.
-const SERVICE_ICON_ALIASES = [
-  [/claude|anthropic/i, "CLAUDE"],
-  [/gpt|openai|chatgpt|codex/i, "CODEX"],
-  [/gemini|google/i, "GEMINI"],
-  [/cursor/i, "CURSOR"],
-  [/grok/i, "GROK"],
-  [/deepseek/i, "DEEPSEEK"],
-  [/kimi|moonshot/i, "KIMI"],
-  [/minimax/i, "MINIMAX"],
-  [/copilot|github/i, "COPILOT"],
-  [/kiro/i, "KIRO"],
-  [/opencode/i, "OPENCODE"],
-];
-
-function providerKeyForService(service) {
-  for (const [pattern, key] of SERVICE_ICON_ALIASES) {
-    if (pattern.test(service)) return key;
-  }
-  return "OTHER";
 }
 
 /**
@@ -56,6 +46,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
   const [formError, setFormError] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -77,10 +68,22 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
     return () => clearInterval(timer);
   }, []);
 
-  const providerOptions = [
-    { value: "", label: copy("subscriptions.form.provider_none") },
-    ...LIMIT_PROVIDER_IDS.map((id) => ({ value: id, label: limitProviderName(id) })),
-  ];
+  const providerOptions = useMemo(
+    () => [
+      { value: "", label: copy("subscriptions.form.provider_none") },
+      ...LIMIT_PROVIDER_IDS.map((id) => ({ value: id, label: limitProviderName(id) })),
+    ],
+    [],
+  );
+
+  const cycleOptions = useMemo(
+    () => [
+      { value: "weekly", label: copy("subscriptions.form.cycle_weekly") },
+      { value: "monthly", label: copy("subscriptions.form.cycle_monthly") },
+      { value: "yearly", label: copy("subscriptions.form.cycle_yearly") },
+    ],
+    [],
+  );
 
   const openAdd = useCallback(() => {
     setForm(EMPTY_FORM);
@@ -94,6 +97,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
       service: subscription.service,
       plan: subscription.plan || "",
       provider: subscription.provider || "",
+      cycle: subscription.cycle || "monthly",
       autoRenew: subscription.autoRenew,
       nextBillingAt: toDatetimeLocalValue(subscription.nextBillingAt),
     });
@@ -123,6 +127,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
         plan: form.plan,
         provider: form.provider || null,
         autoRenew: form.autoRenew,
+        cycle: form.cycle,
         nextBillingAt: timestamp,
       };
       setSaving(true);
@@ -146,12 +151,15 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
   const confirmDelete = useCallback(async () => {
     if (!pendingDelete) return;
     setDeleting(true);
+    setDeleteError(false);
     try {
       await deleteSubscription(pendingDelete.id);
       setPendingDelete(null);
       await onChanged?.();
     } catch (_e) {
-      setPendingDelete(null);
+      // Keep the dialog open with a visible error: silently closing it
+      // would look exactly like a successful delete.
+      setDeleteError(true);
     } finally {
       setDeleting(false);
     }
@@ -180,18 +188,30 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
             >
               {copy("subscriptions.form.provider")}
             </label>
-            <select
+            <Select
               id="subscription-provider"
               value={form.provider}
-              onChange={(event) => setForm({ ...form, provider: event.target.value })}
-              className="h-10 w-full rounded-lg border border-oai-gray-200 bg-white px-3 text-sm text-oai-black focus:outline-none focus:ring-2 focus:ring-oai-brand-500 dark:border-oai-gray-700 dark:bg-oai-gray-900 dark:text-white"
+              onValueChange={(value) => setForm({ ...form, provider: String(value) })}
+              options={providerOptions}
+              matchTriggerWidth
+              className="h-10 w-full px-3 text-sm"
+            />
+          </div>
+          <div className="flex flex-col">
+            <label
+              htmlFor="subscription-cycle"
+              className="block text-sm font-medium text-oai-gray-700 dark:text-oai-gray-300 mb-1.5"
             >
-              {providerOptions.map((option) => (
-                <option key={String(option.value)} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              {copy("subscriptions.form.cycle")}
+            </label>
+            <Select
+              id="subscription-cycle"
+              value={form.cycle}
+              onValueChange={(value) => setForm({ ...form, cycle: String(value) })}
+              options={cycleOptions}
+              matchTriggerWidth
+              className="h-10 w-full px-3 text-sm"
+            />
           </div>
           <Input
             label={copy("subscriptions.form.service")}
@@ -260,10 +280,10 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
       ) : (
         <ul className="flex max-h-72 flex-col gap-1.5 overflow-y-auto">
           {list.map((subscription) => {
-            const endMs = new Date(subscription.nextBillingAt).getTime();
-            const expired = endMs <= now;
-            const { progress, cycleDays } = cycleMetrics(subscription.nextBillingAt, now);
-            const widthPct = expired ? 100 : progress * 100;
+            const view = cycleView(subscription, now);
+            if (!view) return null;
+            const { endMs, expired } = view;
+            const widthPct = expired ? 100 : view.progress * 100;
             const nearExpiry = !expired && endMs - now <= 3 * 86400000;
             const expanded = expandedId === subscription.id;
             return (
@@ -275,7 +295,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
                   className="w-full flex flex-col gap-1.5 px-3 py-2.5 text-left cursor-pointer hover:bg-oai-gray-50 dark:hover:bg-oai-gray-800/40 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500"
                 >
                   <span className="flex items-center gap-2 min-w-0">
-                    <ProviderIcon provider={providerKeyForService(subscription.service)} size={14} />
+                    <ProviderIcon provider={limitProviderIconKey(subscription.provider) || "OTHER"} size={14} />
                     <span className="text-sm font-medium text-oai-black dark:text-white truncate">
                       {subscription.service}
                     </span>
@@ -287,7 +307,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="text-[10px] text-oai-gray-500 dark:text-oai-gray-400 shrink-0">
-                      {copy("shared.time.d_ago", { n: cycleDays })}
+                      {copy("shared.time.d_ago", { n: view.cycleDays })}
                     </span>
                     <span className="relative flex-1 bg-oai-gray-100 dark:bg-oai-gray-700/50 rounded-full h-1 overflow-hidden">
                       <span
@@ -302,7 +322,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
                         expired ? "text-oai-error" : "text-oai-gray-400 dark:text-oai-gray-500"
                       }`}
                     >
-                      {remainingLabel(subscription.nextBillingAt, now)}
+                      {remainingLabel(endMs, now)}
                     </span>
                   </span>
                 </button>
@@ -315,11 +335,11 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
                           : copy("subscriptions.label.expires_at")}
                       </span>{" "}
                       <span className="font-mono tabular-nums">
-                        {dateFormat.format(new Date(subscription.nextBillingAt))}
+                        {dateFormat.format(new Date(endMs))}
                       </span>
                       {" · "}
                       <span className={expired ? "text-oai-error" : undefined}>
-                        {countdownText(subscription.nextBillingAt, now)}
+                        {countdownText(endMs, now)}
                       </span>
                       {" · "}
                       <span>
@@ -359,11 +379,15 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
         open={Boolean(pendingDelete)}
         title={copy("subscriptions.confirm_delete_title")}
         description={pendingDelete?.service || ""}
+        error={deleteError ? copy("subscriptions.delete_error") : null}
         confirmLabel={copy("subscriptions.delete")}
         cancelLabel={copy("shared.action.cancel")}
         destructive
         busy={deleting}
-        onCancel={() => setPendingDelete(null)}
+        onCancel={() => {
+          setPendingDelete(null);
+          setDeleteError(false);
+        }}
         onConfirm={confirmDelete}
       />
     </div>

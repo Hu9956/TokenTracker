@@ -13,7 +13,7 @@ import { ProviderIcon } from "./ProviderIcon.jsx";
 import { buildResetBankRows } from "./usage-limits-reset-bank.js";
 import { PROVIDER_LIMIT_SPECS } from "./usage-limits-provider-specs.js";
 import { HoverTooltip } from "../../components/HoverTooltip.jsx";
-import { countdownText, cycleMetrics } from "../../../lib/subscription-display.js";
+import { cycleView, countdownText, remainingLabel } from "../../../lib/subscription-display.js";
 
 const LIMITS_PROVIDER_ICON_CLASS = "shrink-0 text-oai-black dark:text-oai-white";
 
@@ -212,7 +212,7 @@ function rowHasPaceMarker({ pace }) {
   return pace.pacePercent != null;
 }
 
-function LimitDetail({ rows, mode, subscription = null, now = Date.now() }) {
+function LimitDetail({ rows, mode, now = Date.now() }) {
   if (rows.length === 0) return null;
   const remaining = mode === LIMIT_DISPLAY_MODES.REMAINING;
   const hasPaceMarker = rows.some(rowHasPaceMarker);
@@ -234,7 +234,6 @@ function LimitDetail({ rows, mode, subscription = null, now = Date.now() }) {
           </div>
         );
       })}
-      {subscription ? <SubscriptionDetail subscription={subscription} now={now} /> : null}
       {hasPaceMarker ? (
         <div className="mt-1 pt-1.5 border-t border-oai-gray-200/70 dark:border-oai-gray-700/50 text-[10.5px] leading-snug text-oai-gray-400 dark:text-oai-gray-500">
           {copy(remaining ? "limits.explain.body_remaining" : "limits.explain.body")}
@@ -372,22 +371,12 @@ function SubscriptionRightBadge({ subscription }) {
 // Inline subscription progress bar, rendered under the limit bars of a linked
 // provider. Reuses the same label column width as the limit bars so their
 // tracks line up, and mirrors the limit bar's pct + reset columns on the right.
-function formatSubscriptionRemaining(nextBillingAt, now) {
-  const diff = new Date(nextBillingAt).getTime() - now;
-  if (diff <= 0) return "0d";
-  const m = Math.floor(diff / 60000);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
-}
-
 function SubscriptionBar({ subscription, now }) {
-  const endMs = new Date(subscription.nextBillingAt).getTime();
-  const expired = endMs <= now;
+  const view = cycleView(subscription, now);
+  if (!view) return null;
+  const { endMs, expired } = view;
   const nearExpiry = !expired && endMs - now <= 3 * 86400000;
-  const { progress } = cycleMetrics(subscription.nextBillingAt, now);
-  const widthPct = expired ? 100 : progress * 100;
+  const widthPct = expired ? 100 : view.progress * 100;
   const rounded = Math.round(widthPct);
   const labelPct =
     widthPct > 0 && rounded === 0 ? copy("limits.bar.sub_one_percent") : `${rounded}%`;
@@ -415,14 +404,15 @@ function SubscriptionBar({ subscription, now }) {
           expired ? "text-oai-error" : "text-oai-gray-400 dark:text-oai-gray-500"
         }`}
       >
-        {formatSubscriptionRemaining(subscription.nextBillingAt, now)}
+        {remainingLabel(endMs, now)}
       </span>
     </div>
   );
 }
 
 function SubscriptionDetail({ subscription, now }) {
-  const expired = new Date(subscription.nextBillingAt).getTime() <= now;
+  const view = cycleView(subscription, now);
+  if (!view) return null;
   const dateFormat = new Intl.DateTimeFormat(getCopyLocale(), {
     year: "numeric",
     month: "2-digit",
@@ -441,11 +431,11 @@ function SubscriptionDetail({ subscription, now }) {
       </span>
       <span> </span>
       <span className="font-mono tabular-nums">
-        {dateFormat.format(new Date(subscription.nextBillingAt))}
+        {dateFormat.format(new Date(view.endMs))}
       </span>
       <span className="text-oai-gray-300 dark:text-oai-gray-600"> · </span>
-      <span className={expired ? "text-oai-error" : undefined}>
-        {countdownText(subscription.nextBillingAt, now)}
+      <span className={view.expired ? "text-oai-error" : undefined}>
+        {countdownText(view.endMs, now)}
       </span>
       <span className="text-oai-gray-300 dark:text-oai-gray-600"> · </span>
       <span>
@@ -588,7 +578,7 @@ function renderConfiguredProvider(id, data, title, mode, expanded, onToggle, bad
       key={id}
       name={title}
       providerId={id}
-      expandable={rows.length > 0}
+      expandable={rows.length > 0 || Boolean(subscription)}
       expanded={expanded}
       onToggle={onToggle}
       badge={badge}
@@ -596,7 +586,37 @@ function renderConfiguredProvider(id, data, title, mode, expanded, onToggle, bad
     >
       <LimitWindowSection mode={mode} rows={rows} extra={extra} />
       {subscription ? <SubscriptionBar subscription={subscription} now={now} /> : null}
-      {expanded ? <LimitDetail rows={rows} mode={mode} subscription={subscription} now={now} /> : null}
+      {expanded ? <LimitDetail rows={rows} mode={mode} now={now} /> : null}
+      {expanded && subscription ? (
+        <SubscriptionDetail subscription={subscription} now={now} />
+      ) : null}
+    </ToolGroup>
+  );
+}
+
+// Provider row for states without usable limit data (not connected, inactive,
+// fetch error). A linked subscription still belongs to this row: it is
+// user-entered data, so its badge/progress stay visible regardless of the
+// tool's own configuration state.
+function renderUnlinkedProvider(id, statusNodes, expanded, onToggle, subscription = null, now = Date.now()) {
+  const hasSubscription = Boolean(subscription);
+  return (
+    <ToolGroup
+      key={id}
+      name={limitProviderName(id)}
+      providerId={id}
+      expandable={hasSubscription}
+      expanded={expanded}
+      onToggle={onToggle}
+      rightAdornment={hasSubscription ? <SubscriptionRightBadge subscription={subscription} /> : null}
+    >
+      {statusNodes}
+      {hasSubscription ? <SubscriptionBar subscription={subscription} now={now} /> : null}
+      {hasSubscription && expanded ? (
+        <div className="mt-1">
+          <SubscriptionDetail subscription={subscription} now={now} />
+        </div>
+      ) : null}
     </ToolGroup>
   );
 }
@@ -604,29 +624,42 @@ function renderConfiguredProvider(id, data, title, mode, expanded, onToggle, bad
 function renderProviderGroup(id, data, mode, expanded, onToggle, subscription = null, now = Date.now()) {
   if (!PROVIDER_LIMIT_SPECS[id]) return null;
   if (!data?.configured) {
-    return (
-      <ToolGroup key={id} name={limitProviderName(id)} providerId={id}>
+    return renderUnlinkedProvider(
+      id,
+      <>
         <StatusLine>{copy("limits.status.not_connected")}</StatusLine>
         {id === "opencodeGo" ? <OpenCodeGoSetupHint /> : null}
-      </ToolGroup>
+      </>,
+      expanded,
+      onToggle,
+      subscription,
+      now,
     );
   }
   if (id === "opencodeGo" && data.subscription_status === "inactive") {
-    return (
-      <ToolGroup key={id} name={limitProviderName(id)} providerId={id}>
-        <StatusLine>{copy("limits.opencodeGo.status.inactive")}</StatusLine>
-      </ToolGroup>
+    return renderUnlinkedProvider(
+      id,
+      <StatusLine>{copy("limits.opencodeGo.status.inactive")}</StatusLine>,
+      expanded,
+      onToggle,
+      subscription,
+      now,
     );
   }
   if (data.error) {
-    return (
-      <ToolGroup key={id} name={limitProviderName(id)} providerId={id}>
+    return renderUnlinkedProvider(
+      id,
+      <>
         <StatusLine tone="error">{copy("shared.error.prefix", { error: data.error })}</StatusLine>
         {id === "kiro"
           ? renderProviderExtra(PROVIDER_LIMIT_SPECS.kiro.extra, data)
           : null}
         {id === "opencodeGo" ? <OpenCodeGoSetupHint /> : null}
-      </ToolGroup>
+      </>,
+      expanded,
+      onToggle,
+      subscription,
+      now,
     );
   }
 
@@ -859,19 +892,35 @@ export function UsageLimitsPanel({ claude, codex, cursor, gemini, kimi, kiro, gr
     return () => clearInterval(timer);
   }, []);
 
-  // Soonest-expiring subscription per linked provider; multiple subscriptions
-  // for one tool show only the most urgent inline, managed on /subscriptions.
+  // One inline row per linked provider. Prefer the soonest still-active
+  // record; only when every record for a provider is past its date does the
+  // most recently expired one show (an expired history record must not mask a
+  // live renewal). Extra records stay manageable in the settings popover.
   const subscriptionByProvider = new Map();
   for (const subscription of subscriptions || []) {
     if (!subscription?.provider) continue;
+    const endMs = new Date(subscription.nextBillingAt).getTime();
+    if (!Number.isFinite(endMs)) continue;
     const existing = subscriptionByProvider.get(subscription.provider);
-    if (!existing || new Date(subscription.nextBillingAt) < new Date(existing.nextBillingAt)) {
+    if (!existing) {
+      subscriptionByProvider.set(subscription.provider, subscription);
+      continue;
+    }
+    const existingMs = new Date(existing.nextBillingAt).getTime();
+    const upcoming = endMs > now;
+    const existingUpcoming = existingMs > now;
+    if (
+      (upcoming && (!existingUpcoming || existingMs > endMs)) ||
+      (!upcoming && !existingUpcoming && endMs > existingMs)
+    ) {
       subscriptionByProvider.set(subscription.provider, subscription);
     }
   }
 
+  // Hiding a tool hides its limits row, but not a subscription the user
+  // entered by hand — that data keeps its row regardless of visibility prefs.
   const groups = effectiveOrder
-    .filter((id) => !visibility || visibility[id] !== false)
+    .filter((id) => !visibility || visibility[id] !== false || subscriptionByProvider.has(id))
     .map((id) => {
       return renderProviderGroup(
         id,
