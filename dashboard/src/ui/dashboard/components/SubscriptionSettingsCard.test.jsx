@@ -5,7 +5,7 @@ import {
   deleteSubscription,
   updateSubscription,
 } from "../../../lib/subscription-manager-api";
-import { SubscriptionSettingsCard } from "./SubscriptionSettingsCard.jsx";
+import { SubscriptionSettingsCard, toDatetimeLocalValue } from "./SubscriptionSettingsCard.jsx";
 
 vi.mock("../../../lib/subscription-manager-api", () => ({
   createSubscription: vi.fn(),
@@ -35,6 +35,28 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+describe("toDatetimeLocalValue", () => {
+  it("round-trips stored UTC timestamps through the local datetime-local input", () => {
+    // The stored record is UTC; the form input shows local wall time. Parsing
+    // that value back must land on the same minute no matter which time zone
+    // (or DST offset) the viewer sits in.
+    const samples = [
+      Date.UTC(2026, 7, 16, 6, 0),
+      Date.UTC(2026, 2, 8, 7, 30), // US DST transition day
+      Date.UTC(2026, 2, 29, 1, 15), // EU DST transition day
+      Date.UTC(2026, 11, 31, 23, 59),
+    ];
+    for (const ms of samples) {
+      const value = toDatetimeLocalValue(new Date(ms).toISOString());
+      expect(new Date(value).getTime()).toBe(ms);
+    }
+  });
+
+  it("returns an empty string for unparseable input", () => {
+    expect(toDatetimeLocalValue("not a date")).toBe("");
+  });
 });
 
 describe("SubscriptionSettingsCard", () => {
