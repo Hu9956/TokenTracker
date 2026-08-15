@@ -140,11 +140,14 @@ async function readStore(filePath, { forWrite = false } = {}) {
 }
 
 // A write is about to replace a store that contained unreadable data — keep
-// the original around first so nothing is lost without a trace.
+// a copy around first so nothing is lost without a trace. Copy (not rename):
+// if the replacement write then fails, the canonical path must still hold the
+// damaged original, otherwise the next write would treat it as missing and
+// start from an empty store.
 async function backupDamagedStore(filePath) {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   try {
-    await fs.rename(filePath, `${filePath}.corrupt-${stamp}`);
+    await fs.copyFile(filePath, `${filePath}.corrupt-${stamp}`);
   } catch (e) {
     if (e?.code !== "ENOENT") {
       throw new Error(`Cannot back up the damaged subscription store: ${e?.message || String(e)}`);
@@ -159,7 +162,10 @@ async function loadStoreForWrite(filePath) {
 }
 
 async function writeStore(filePath, store) {
-  await writeFileAtomic(filePath, JSON.stringify(store, null, 2) + "\n");
+  // Private from creation: the 0o600 applies to the tmp file before the
+  // rename, so a crash before the fallback chmod cannot leave a
+  // world-readable store behind.
+  await writeFileAtomic(filePath, JSON.stringify(store, null, 2) + "\n", { mode: 0o600 });
   await chmod600IfPossible(filePath);
 }
 

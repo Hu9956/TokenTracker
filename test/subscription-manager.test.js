@@ -93,6 +93,56 @@ test("a write over a corrupt store backs the original up before replacing it", a
   }
 });
 
+test("a failed replacement keeps the damaged store at its canonical path", async () => {
+  const trackerDir = await makeTrackerDir("tt-subscription-manager-replace-fail-");
+  const realWriteFile = fs.writeFile;
+  try {
+    const storePath = resolveSubscriptionsPath(trackerDir);
+    await fs.writeFile(storePath, "{not json", "utf8");
+
+    // The replacement write fails after the backup was copied. The damaged
+    // original must survive at the canonical path so a retry never starts
+    // from a "missing" (empty) store.
+    fs.writeFile = async () => {
+      throw Object.assign(new Error("disk full"), { code: "ENOSPC" });
+    };
+    await assert.rejects(
+      createSubscription({ trackerDir, fields: VALID_FIELDS }),
+      /disk full/,
+    );
+    fs.writeFile = realWriteFile;
+
+    const files = await fs.readdir(trackerDir);
+    const backups = files.filter((name) => name.startsWith("subscription-manager.json.corrupt-"));
+    assert.equal(backups.length, 1);
+    assert.equal(await fs.readFile(storePath, "utf8"), "{not json");
+
+    const created = await createSubscription({ trackerDir, fields: VALID_FIELDS });
+    const listed = await listSubscriptions({ trackerDir });
+    assert.deepEqual(listed.map((s) => s.id), [created.id]);
+  } finally {
+    fs.writeFile = realWriteFile;
+    await fs.rm(trackerDir, { recursive: true, force: true });
+  }
+});
+
+test("the store file is private from creation even without the chmod fallback", { skip: process.platform === "win32" }, async () => {
+  const trackerDir = await makeTrackerDir("tt-subscription-manager-mode-");
+  const realChmod = fs.chmod;
+  try {
+    // Simulate a crash between the rename and the fallback chmod: the tmp
+    // file must already carry 0o600 so the store is never world-readable.
+    fs.chmod = async () => {};
+    const created = await createSubscription({ trackerDir, fields: VALID_FIELDS });
+    assert.ok(created.id);
+    const stat = await fs.stat(resolveSubscriptionsPath(trackerDir));
+    assert.equal(stat.mode & 0o777, 0o600);
+  } finally {
+    fs.chmod = realChmod;
+    await fs.rm(trackerDir, { recursive: true, force: true });
+  }
+});
+
 test("a write refuses to touch a store it cannot read", async () => {
   const trackerDir = await makeTrackerDir("tt-subscription-manager-unreadable-");
   try {

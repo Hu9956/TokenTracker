@@ -92,6 +92,19 @@ describe("cycleView", () => {
     expect(view.cycleDays).toBe(7);
   });
 
+  it("advances a weekly record a full week when now lands exactly on the renewal", () => {
+    // ceil(0/7) alone adds zero weeks, which would pin the bar at 100% with
+    // an expired-style label while autoRenew says otherwise.
+    const endMs = UTC(2026, 2, 1, 0, 0);
+    const view = cycleView(
+      makeSubscription({ cycle: "weekly", nextBillingAt: iso(endMs) }),
+      endMs,
+    );
+    expect(view.endMs).toBe(endMs + 7 * 86400000);
+    expect(view.progress).toBe(0);
+    expect(view.expired).toBe(false);
+  });
+
   it("rolls yearly records by calendar years with leap clamping", () => {
     const now = UTC(2026, 2, 5, 0, 0);
     const view = cycleView(

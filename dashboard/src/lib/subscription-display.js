@@ -64,7 +64,9 @@ export function cycleView(subscription, now) {
   if (subscription.autoRenew && endMs <= now) {
     if (cycle === "weekly") {
       const span = 7 * DAY_MS;
-      endMs += Math.ceil((now - endMs) / span) * span;
+      // At least one week: when now lands exactly on endMs, ceil() alone
+      // adds zero weeks and the record would render as a stuck 100% bar.
+      endMs += Math.max(1, Math.ceil((now - endMs) / span)) * span;
     } else {
       const step = cycle === "yearly" ? 12 : 1;
       // Bounded for safety; a record millennia in the past still terminates.
@@ -87,15 +89,17 @@ export function cycleView(subscription, now) {
 }
 
 // Compact right-hand label, same vocabulary as the limits bar ("6d", "17h").
+// Deliberately locale-independent: the shared time keys translate to verbose
+// past-tense strings ("X天前"), which is wrong for a remaining duration.
 // Takes the effective end (already rolled for auto-renew) from cycleView.
 export function remainingLabel(endMs, now) {
   const diff = endMs - now;
   if (diff <= 0) return copy("subscriptions.expired");
   const totalMinutes = Math.ceil(diff / 60000);
-  if (totalMinutes < 60) return copy("shared.time.m_ago", { n: totalMinutes });
+  if (totalMinutes < 60) return `${totalMinutes}m`;
   const totalHours = Math.floor(totalMinutes / 60);
-  if (totalHours < 24) return copy("shared.time.h_ago", { n: totalHours });
-  return copy("shared.time.d_ago", { n: Math.floor(totalHours / 24) });
+  if (totalHours < 24) return `${totalHours}h`;
+  return `${Math.floor(totalHours / 24)}d`;
 }
 
 export function countdownText(endMs, now) {
