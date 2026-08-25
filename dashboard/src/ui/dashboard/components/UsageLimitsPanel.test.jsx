@@ -210,9 +210,9 @@ describe("UsageLimitsPanel", () => {
       />,
     );
 
-    const group = screen.getByText("OpenCode Go").closest("[role='button']");
+    const group = screen.getByText("OpenCode Go").closest("[data-limit-group]");
     expect(group).not.toBeNull();
-    fireEvent.click(group);
+    fireEvent.click(within(group).getByRole("button", { name: /OpenCode Go/ }));
 
     expect(within(group).queryByText(copy("limits.explain.body"))).not.toBeInTheDocument();
   });
@@ -235,10 +235,10 @@ describe("UsageLimitsPanel", () => {
       />,
     );
 
-    const group = screen.getByText("Cursor").closest("[role='button']");
+    const group = screen.getByText("Cursor").closest("[data-limit-group]");
     expect(group).not.toBeNull();
     expect(group.querySelectorAll("div.absolute.top-0.h-full")).toHaveLength(2);
-    fireEvent.click(group);
+    fireEvent.click(within(group).getByRole("button", { name: /Cursor/ }));
     expect(within(group).getByText(copy("limits.explain.body"))).toBeInTheDocument();
   });
 
@@ -429,7 +429,7 @@ describe("UsageLimitsPanel", () => {
       />,
     );
 
-    const group = screen.getByText("Antigravity").closest("[role='button']");
+    const group = screen.getByText("Antigravity").closest("[data-limit-group]");
     expect(group).not.toBeNull();
     expect(within(group).getByText(/cached\s*·/i)).toBeInTheDocument();
     expect(group.querySelector("span.bg-amber-500")).not.toBeNull();
@@ -457,7 +457,7 @@ describe("UsageLimitsPanel", () => {
       />,
     );
 
-    const group = screen.getByText("Claude").closest("[role='button']");
+    const group = screen.getByText("Claude").closest("[data-limit-group]");
     expect(group).not.toBeNull();
     expect(within(group).getByText(new RegExp(copy("limits.reauth.badge")))).toBeInTheDocument();
     expect(within(group).queryByText(/^Stale/i)).not.toBeInTheDocument();
@@ -560,7 +560,7 @@ describe("UsageLimitsPanel", () => {
       />,
     );
 
-    const codexGroupElement = screen.getByText("Codex").closest("[role='button']");
+    const codexGroupElement = screen.getByText("Codex").closest("[data-limit-group]");
     expect(codexGroupElement).not.toBeNull();
     const codexGroup = within(codexGroupElement);
     expect(codexGroup.getByText("5h")).toBeInTheDocument();
@@ -601,7 +601,7 @@ describe("UsageLimitsPanel", () => {
       />,
     );
 
-    const codexGroupElement = screen.getByText("Codex").closest("[role='button']");
+    const codexGroupElement = screen.getByText("Codex").closest("[data-limit-group]");
     expect(codexGroupElement).not.toBeNull();
     const section = codexGroupElement.querySelector("[data-reset-bank-section='count_only']");
     expect(section).not.toBeNull();
@@ -628,7 +628,7 @@ describe("UsageLimitsPanel", () => {
       />,
     );
 
-    const codexGroupElement = screen.getByText("Codex").closest("[role='button']");
+    const codexGroupElement = screen.getByText("Codex").closest("[data-limit-group]");
     expect(codexGroupElement).not.toBeNull();
     expect(codexGroupElement.querySelector("[data-reset-bank-section]")).toBeNull();
     expect(within(codexGroupElement).queryByText(copy("limits.codex_reset_bank.title"))).not.toBeInTheDocument();
@@ -663,9 +663,42 @@ describe("UsageLimitsPanel", () => {
     expect(screen.getByText("Subscription")).toBeInTheDocument();
 
     // Expanding reveals the subscription detail line.
-    fireEvent.click(screen.getByText("Cursor").closest("[role='button']"));
+    const group = screen.getByText("Cursor").closest("[data-limit-group]");
+    const toggle = within(group).getByRole("button", { name: /Cursor/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-controls", "limits-provider-cursor");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Next renewal")).toBeInTheDocument();
     expect(screen.getByText("Auto-renew on")).toBeInTheDocument();
+  });
+
+  it("keeps provider setup actions outside the expand toggle", () => {
+    const subscription = {
+      id: "s1",
+      service: "OpenCode Go",
+      provider: "opencodeGo",
+      autoRenew: true,
+      nextBillingAt: new Date(Date.now() + 2 * 86400000).toISOString(),
+    };
+
+    render(
+      <UsageLimitsPanel
+        opencodeGo={{ configured: false }}
+        order={["opencodeGo"]}
+        subscriptions={[subscription]}
+      />,
+    );
+
+    const group = screen.getByText("OpenCode Go").closest("[data-limit-group]");
+    const toggle = within(group).getByRole("button", { name: /OpenCode Go/ });
+    const copyButton = within(group).getByRole("button", {
+      name: copy("limits.opencodeGo.setupHint.copy"),
+    });
+
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(copyButton);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
   it("does not render subscription rows for a provider without a linked subscription", () => {

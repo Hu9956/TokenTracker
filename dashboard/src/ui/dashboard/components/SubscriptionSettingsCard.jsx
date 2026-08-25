@@ -50,16 +50,17 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
   const [expandedId, setExpandedId] = useState(null);
   const [now, setNow] = useState(() => Date.now());
 
+  const copyLocale = getCopyLocale();
   const dateFormat = useMemo(
     () =>
-      new Intl.DateTimeFormat(getCopyLocale(), {
+      new Intl.DateTimeFormat(copyLocale, {
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
       }),
-    [],
+    [copyLocale],
   );
 
   // Refresh countdowns/remaining labels once a minute.
@@ -73,7 +74,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
       { value: "", label: copy("subscriptions.form.provider_none") },
       ...LIMIT_PROVIDER_IDS.map((id) => ({ value: id, label: limitProviderName(id) })),
     ],
-    [],
+    [copyLocale],
   );
 
   const cycleOptions = useMemo(
@@ -82,7 +83,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
       { value: "monthly", label: copy("subscriptions.form.cycle_monthly") },
       { value: "yearly", label: copy("subscriptions.form.cycle_yearly") },
     ],
-    [],
+    [copyLocale],
   );
 
   const openAdd = useCallback(() => {
@@ -168,20 +169,27 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
   const list = subscriptions || [];
 
   return (
-    <div className="flex w-[min(90vw,22rem)] flex-col gap-3 rounded-xl border border-oai-gray-200 bg-white p-4 shadow-lg dark:border-oai-gray-700 dark:bg-oai-gray-900">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold text-oai-black dark:text-white">
-          {copy("limits.page.openSubscriptions")}
-        </span>
-        <Button type="button" size="sm" onClick={openAdd} className="gap-1.5">
+    <div className="flex max-h-[min(80vh,42rem)] w-[min(92vw,32rem)] flex-col gap-3 overflow-y-auto rounded-xl border border-oai-gray-200 bg-white p-4 shadow-lg dark:border-oai-gray-700 dark:bg-oai-gray-900">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <span className="block truncate text-sm font-semibold text-oai-black dark:text-white">
+            {copy("limits.page.openSubscriptions")}
+          </span>
+        </div>
+        <Button type="button" size="sm" onClick={openAdd} className="shrink-0 gap-1.5">
           <Plus size={14} strokeWidth={2} aria-hidden />
           <span>{copy("subscriptions.add")}</span>
         </Button>
       </div>
 
       {formOpen ? (
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 border-b border-oai-gray-100 pb-3 dark:border-oai-gray-800">
-          <div className="flex flex-col">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 border-y border-oai-gray-100 py-3 dark:border-oai-gray-800 sm:grid-cols-2">
+          <div className="flex items-center justify-between sm:col-span-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-oai-gray-500 dark:text-oai-gray-400">
+              {editingId ? copy("subscriptions.edit") : copy("subscriptions.add")}
+            </span>
+          </div>
+          <div className="flex flex-col sm:col-span-1">
             <label
               htmlFor="subscription-provider"
               className="block text-sm font-medium text-oai-gray-700 dark:text-oai-gray-300 mb-1.5"
@@ -197,7 +205,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
               className="h-10 w-full px-3 text-sm"
             />
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col sm:col-span-1">
             <label
               htmlFor="subscription-cycle"
               className="block text-sm font-medium text-oai-gray-700 dark:text-oai-gray-300 mb-1.5"
@@ -213,33 +221,39 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
               className="h-10 w-full px-3 text-sm"
             />
           </div>
-          <Input
-            label={copy("subscriptions.form.service")}
-            value={form.service}
-            maxLength={120}
-            required
-            placeholder={copy("subscriptions.form.service_placeholder")}
-            onChange={(event) => setForm({ ...form, service: event.target.value })}
-          />
-          <Input
-            label={copy("subscriptions.form.plan")}
-            value={form.plan}
-            maxLength={120}
-            placeholder={copy("subscriptions.form.plan_placeholder")}
-            onChange={(event) => setForm({ ...form, plan: event.target.value })}
-          />
-          <Input
-            label={copy("subscriptions.form.next_billing")}
-            type="datetime-local"
-            value={form.nextBillingAt}
-            required
-            onChange={(event) => setForm({ ...form, nextBillingAt: event.target.value })}
-          />
-          <div className="flex flex-col">
+          <div className="sm:col-span-1">
+            <Input
+              label={copy("subscriptions.form.service")}
+              value={form.service}
+              maxLength={120}
+              required
+              placeholder={copy("subscriptions.form.service_placeholder")}
+              onChange={(event) => setForm({ ...form, service: event.target.value })}
+            />
+          </div>
+          <div className="sm:col-span-1">
+            <Input
+              label={copy("subscriptions.form.plan")}
+              value={form.plan}
+              maxLength={120}
+              placeholder={copy("subscriptions.form.plan_placeholder")}
+              onChange={(event) => setForm({ ...form, plan: event.target.value })}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Input
+              label={copy("subscriptions.form.next_billing")}
+              type="datetime-local"
+              value={form.nextBillingAt}
+              required
+              onChange={(event) => setForm({ ...form, nextBillingAt: event.target.value })}
+            />
+          </div>
+          <div className="flex flex-col rounded-lg border border-oai-gray-200/70 bg-oai-gray-50/50 px-3 py-2.5 dark:border-oai-gray-700/60 dark:bg-oai-gray-800/20 sm:col-span-2">
             <span className="block text-sm font-medium text-oai-gray-700 dark:text-oai-gray-300 mb-1.5">
               {copy("subscriptions.form.auto_renew")}
             </span>
-            <label className="flex h-10 items-center gap-2.5">
+            <label className="mt-0.5 flex min-h-10 items-center gap-2.5">
               <input
                 type="checkbox"
                 checked={form.autoRenew}
@@ -251,7 +265,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
               </span>
             </label>
           </div>
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-end gap-2 sm:col-span-2">
             {formError ? (
               <p className="mr-auto text-sm text-oai-error" role="alert">
                 {copy("subscriptions.form.error")}

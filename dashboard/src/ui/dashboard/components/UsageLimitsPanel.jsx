@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { Card } from "../../components";
 import { FadeIn } from "../../foundation/FadeIn.jsx";
 import { copy, getCopyLocale } from "../../../lib/copy";
@@ -310,19 +311,19 @@ function StatusBadge({ label, age = null, tone = "live", tooltip = null }) {
 function ToolGroup({ name, providerId, children, expandable = false, expanded = false, onToggle, badge = null, rightAdornment = null }) {
   const providerKey = limitProviderIconKey(providerId);
   const header = (
-    <div className="flex items-center gap-1.5">
+    <span className="flex min-w-0 flex-1 items-center gap-1.5">
       {providerKey ? (
         <ProviderIcon provider={providerKey} size={14} className={LIMITS_PROVIDER_ICON_CLASS} />
       ) : null}
-      <span className="text-sm font-medium text-oai-black dark:text-oai-white">{name}</span>
+      <span className="min-w-0 truncate text-sm font-medium text-oai-black dark:text-oai-white">{name}</span>
       {badge}
       {rightAdornment ? <span className="ml-auto shrink-0">{rightAdornment}</span> : null}
-    </div>
+    </span>
   );
 
   if (!expandable) {
     return (
-      <div className="flex flex-col gap-1.5">
+      <div data-limit-group={providerId} className="flex flex-col gap-1.5">
         {header}
         {children}
       </div>
@@ -331,20 +332,29 @@ function ToolGroup({ name, providerId, children, expandable = false, expanded = 
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      aria-expanded={expanded}
-      onClick={onToggle}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onToggle?.();
-        }
-      }}
-      className="flex flex-col gap-1.5 -mx-1.5 px-1.5 py-1 rounded-lg cursor-pointer transition-colors hover:bg-oai-gray-50 dark:hover:bg-oai-gray-800/40 aria-expanded:bg-oai-gray-50 dark:aria-expanded:bg-oai-gray-800/40"
+      data-limit-group={providerId}
+      className={`flex flex-col gap-1.5 -mx-1.5 rounded-xl px-1.5 py-1 transition-colors ${
+        expanded ? "bg-oai-gray-50/80 dark:bg-oai-gray-800/30" : ""
+      }`}
     >
-      {header}
-      {children}
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={`limits-provider-${providerId}`}
+        onClick={onToggle}
+        className="group flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-oai-gray-100/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500 dark:hover:bg-oai-gray-800/60"
+      >
+        {header}
+        <ChevronDown
+          aria-hidden
+          className={`h-3.5 w-3.5 shrink-0 text-oai-gray-400 transition-transform duration-200 dark:text-oai-gray-500 ${
+            expanded ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+      <div id={`limits-provider-${providerId}`} className="flex flex-col gap-1.5 px-1.5 pb-1">
+        {children}
+      </div>
     </div>
   );
 }
@@ -381,7 +391,7 @@ function SubscriptionBar({ subscription, now }) {
   const labelPct =
     widthPct > 0 && rounded === 0 ? copy("limits.bar.sub_one_percent") : `${rounded}%`;
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 rounded-lg border border-oai-gray-200/70 bg-oai-gray-50/60 px-2 py-1.5 dark:border-oai-gray-700/60 dark:bg-oai-gray-800/20">
       <span
         className="text-[11px] text-oai-gray-500 dark:text-oai-gray-400 shrink-0 whitespace-nowrap"
         style={{ width: "var(--tt-limits-label-w)" }}
@@ -421,7 +431,7 @@ function SubscriptionDetail({ subscription, now }) {
     minute: "2-digit",
   });
   return (
-    <div className="text-[11px] leading-snug text-oai-gray-500 dark:text-oai-gray-400">
+    <div className="rounded-lg border-l-2 border-oai-brand-300 bg-oai-gray-50/60 px-2.5 py-2 text-[11px] leading-snug text-oai-gray-500 dark:border-oai-brand-700 dark:bg-oai-gray-800/20 dark:text-oai-gray-400">
       <span>{copy("subscriptions.inline.label")}</span>
       <span className="text-oai-gray-300 dark:text-oai-gray-600">：</span>
       <span>
