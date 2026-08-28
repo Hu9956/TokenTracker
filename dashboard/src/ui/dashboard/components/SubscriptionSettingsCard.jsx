@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarClock, Plus } from "lucide-react";
+import { CalendarClock, Clock, Infinity, Plus } from "lucide-react";
 import { copy, getCopyLocale } from "../../../lib/copy";
 import { Button, ConfirmModal, Input, Select } from "../../components";
 import { ProviderIcon } from "./ProviderIcon.jsx";
@@ -222,6 +222,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
     setDeleteError(false);
     try {
       await deleteSubscription(pendingDelete.id);
+      if (pendingDelete.id === editingId) closeForm();
       setPendingDelete(null);
       await onChanged?.();
     } catch (_e) {
@@ -231,7 +232,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
     } finally {
       setDeleting(false);
     }
-  }, [onChanged, pendingDelete]);
+  }, [closeForm, editingId, onChanged, pendingDelete]);
 
   const list = subscriptions || [];
 
@@ -239,6 +240,8 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
   // last list entry when adding. Kept as one node so both spots share the
   // exact same fields and behavior.
   const renderForm = () => {
+    const editingSub = editingId ? list.find((item) => item.id === editingId) : null;
+    const editingView = editingSub ? cycleView(editingSub, now) : null;
     return (
       <form ref={formRef} onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 px-3 py-3 text-left sm:grid-cols-2">
       <div className="flex items-center justify-between sm:col-span-2">
@@ -246,6 +249,16 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
           {editingId ? copy("subscriptions.edit") : copy("subscriptions.add")}
         </span>
       </div>
+      {editingView ? (
+        <div className="sm:col-span-2 rounded-md bg-oai-gray-50 dark:bg-oai-gray-800/50 px-2.5 py-2 text-xs text-oai-gray-600 dark:text-oai-gray-300">
+          <span className="text-oai-gray-400 dark:text-oai-gray-500">
+            {editingSub.autoRenew ? copy("subscriptions.label.renews_at") : copy("subscriptions.label.expires_at")}
+          </span>{" "}
+          <span className="font-mono tabular-nums">{dateFormat.format(new Date(editingView.endMs))}</span>
+          {" · "}
+          <span className={editingView.expired ? "text-oai-error" : undefined}>{countdownText(editingView.endMs, now)}</span>
+        </div>
+      ) : null}
           <div className="flex flex-col sm:col-span-1">
             <label
               htmlFor="subscription-provider"
@@ -313,6 +326,20 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
             />
           </div>
           <div className="flex items-center justify-end gap-2 sm:col-span-2">
+            {editingId ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const target = list.find((item) => item.id === editingId);
+                  if (target) setPendingDelete(target);
+                }}
+                className="!text-red-600 dark:!text-red-400 mr-auto"
+              >
+                {copy("subscriptions.delete")}
+              </Button>
+            ) : null}
             {providerError ? (
               <p className="mr-auto text-sm text-oai-error" role="alert">
                 {copy("subscriptions.form.provider_required")}
@@ -379,14 +406,39 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
               <li key={subscription.id} className="rounded-lg border border-oai-gray-100 dark:border-oai-gray-800">
                 <button
                   type="button"
-                  onClick={() => setExpandedId(expanded ? null : subscription.id)}
-                  aria-expanded={expanded}
+                  onClick={() => openEdit(subscription)}
+                  aria-label={`${copy("subscriptions.edit")} ${subscription.service}`}
+                  aria-expanded={editingId === subscription.id}
                   className="w-full flex flex-col gap-1.5 px-3 py-2.5 text-left cursor-pointer hover:bg-oai-gray-50 dark:hover:bg-oai-gray-800/40 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-oai-brand-500"
                 >
                   <span className="flex items-center gap-2 min-w-0">
                     <ProviderIcon provider={limitProviderIconKey(subscription.provider) || "OTHER"} size={14} />
                     <span className="text-sm font-medium text-oai-black dark:text-white truncate">
                       {subscription.service}
+                    </span>
+                    <span
+                      role="img"
+                      aria-label={
+                        subscription.autoRenew
+                          ? copy("subscriptions.badge.auto_renew")
+                          : copy("subscriptions.badge.stops")
+                      }
+                      title={
+                        subscription.autoRenew
+                          ? copy("subscriptions.badge.auto_renew")
+                          : copy("subscriptions.badge.stops")
+                      }
+                      className={`inline-flex shrink-0 translate-y-px ${
+                        subscription.autoRenew
+                          ? "text-oai-brand-600 dark:text-oai-brand-400"
+                          : "text-blue-600 dark:text-blue-400"
+                      }`}
+                    >
+                      {subscription.autoRenew ? (
+                        <Infinity size={14} strokeWidth={2} aria-hidden />
+                      ) : (
+                        <Clock size={14} strokeWidth={2} aria-hidden />
+                      )}
                     </span>
                     {subscription.plan ? (
                       <span className="text-xs rounded-full border border-oai-gray-200 dark:border-oai-gray-700 px-2 py-0.5 text-oai-gray-500 dark:text-oai-gray-400 shrink-0">
@@ -396,7 +448,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="text-[10px] text-oai-gray-500 dark:text-oai-gray-400 shrink-0">
-                      {copy("shared.time.d_ago", { n: view.cycleDays })}
+                      {copy("subscriptions.inline.label")}
                     </span>
                     <span className="relative flex-1 bg-oai-gray-100 dark:bg-oai-gray-700/50 rounded-full h-1 overflow-hidden">
                       <span
@@ -450,15 +502,6 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
                         onClick={() => openEdit(subscription)}
                       >
                         {copy("subscriptions.edit")}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setPendingDelete(subscription)}
-                        className="!text-red-600 dark:!text-red-400"
-                      >
-                        {copy("subscriptions.delete")}
                       </Button>
                     </div>
                   </div>

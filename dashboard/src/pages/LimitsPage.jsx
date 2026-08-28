@@ -1,5 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "motion/react";
 import { Bell, BellOff, CalendarClock, Settings as SettingsIcon } from "lucide-react";
 import { Popover } from "@base-ui/react/popover";
@@ -75,6 +75,7 @@ export function LimitsPage() {
   const [subscriptions, setSubscriptions] = React.useState([]);
   const [subscriptionsError, setSubscriptionsError] = React.useState(false);
   const [subscriptionsOpen, setSubscriptionsOpen] = React.useState(false);
+  const [searchParams] = useSearchParams();
   const subscriptionRefreshRef = React.useRef(0);
 
   const refreshSubscriptions = React.useCallback(async () => {
@@ -100,6 +101,12 @@ export function LimitsPage() {
   React.useEffect(() => {
     void refreshSubscriptions();
   }, [refreshSubscriptions]);
+
+  React.useEffect(() => {
+    if (searchParams.get("openSubscriptions") === "1") {
+      setSubscriptionsOpen(true);
+    }
+  }, [searchParams]);
 
   React.useEffect(() => {
     if (alerts.enabled && usageLimits) sendPredictiveLimitAlerts(usageLimits);

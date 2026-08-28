@@ -67,13 +67,9 @@ describe("SubscriptionSettingsCard", () => {
     expect(screen.getByText("Add subscription")).toBeInTheDocument();
   });
 
-  it("lists subscriptions and expands details on click", () => {
-    // The exact countdown text ("in 2d 3h 4m") depends on the wall-clock
-    // minute the record's nextBillingAt falls in. Freezing the whole clock
-    // via fake timers keeps the record creation, the component's initial
-    // `now` state, and the countdown math on the same instant, so a real-
-    // time minute rollover between those steps cannot flip the assertion to
-    // "in 2d 3h 3m" in the full suite.
+  it("lists subscriptions and opens edit on click", () => {
+    // Clicking a subscription row now directly enters edit (task 2) instead of
+    // expanding a detail view. The edit form is rendered in place below the row.
     vi.useFakeTimers();
     vi.setSystemTime(new Date(Date.UTC(2026, 7, 16, 12, 0, 0)));
     try {
@@ -99,9 +95,8 @@ describe("SubscriptionSettingsCard", () => {
       expect(screen.getByText("Expired")).toBeInTheDocument();
 
       fireEvent.click(screen.getByText("GPT"));
-      expect(screen.getByText("Auto-renew on")).toBeInTheDocument();
-      expect(screen.getByText("Next renewal")).toBeInTheDocument();
-      expect(screen.getByText("in 2d 3h 4m")).toBeInTheDocument();
+      expect(screen.getByLabelText("Linked tool")).toBeInTheDocument();
+      expect(screen.getByLabelText("Plan")).toHaveValue("Plus");
     } finally {
       vi.useRealTimers();
     }
@@ -206,9 +201,8 @@ describe("SubscriptionSettingsCard", () => {
     fireEvent.click(screen.getByText("Cancel"));
 
     // Editing: the record's own tool stays selectable while the other taken
-    // tool remains off-limits.
+    // tool remains off-limits. Clicking the row now directly opens edit.
     fireEvent.click(screen.getByText("GPT"));
-    fireEvent.click(screen.getByText("Edit"));
     fireEvent.click(screen.getByLabelText("Linked tool"));
     expect(screen.getByRole("option", { name: "Codex" })).not.toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("option", { name: "Claude (already subscribed)" })).toHaveAttribute("aria-disabled", "true");
@@ -224,7 +218,6 @@ describe("SubscriptionSettingsCard", () => {
     );
 
     fireEvent.click(screen.getByText("GPT"));
-    fireEvent.click(screen.getByText("Edit"));
     fireEvent.change(screen.getByLabelText("Subscription date"), {
       target: { value: "2026-08-16T14:00" },
     });
@@ -263,7 +256,6 @@ describe("SubscriptionSettingsCard", () => {
     );
 
     fireEvent.click(screen.getByText("GPT"));
-    fireEvent.click(screen.getByText("Edit"));
 
     // The form opens pre-filled and sits between the edited row and the next
     // list entry — not in a separate section above the list.
@@ -303,7 +295,6 @@ describe("SubscriptionSettingsCard", () => {
     render(<SubscriptionSettingsCard subscriptions={[record]} onChanged={vi.fn()} />);
 
     fireEvent.click(screen.getByText("GPT"));
-    fireEvent.click(screen.getByText("Edit"));
 
     const value = screen.getByLabelText("Subscription date").value;
     // datetime-local renders in local time; compare instants, not strings.
@@ -320,7 +311,6 @@ describe("SubscriptionSettingsCard", () => {
     render(<SubscriptionSettingsCard subscriptions={[record]} onChanged={vi.fn()} />);
 
     fireEvent.click(screen.getByText("GPT"));
-    fireEvent.click(screen.getByText("Edit"));
 
     const value = screen.getByLabelText("Subscription date").value;
     expect(new Date(value).getTime()).toBe(Date.parse("2026-02-28T10:07:00.000Z"));
