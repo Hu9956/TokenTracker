@@ -668,5 +668,7 @@
   "widgets.preview.heatmap_summary": "Token · {{days}} 個活躍日",
   "widgets.preview.reset_days": "{{days}} 天後",
   "widgets.preview.reset_hours_minutes": "{{hours}} 小時 {{minutes}} 分鐘後",
-  "widgets.preview.metric": "指標"
+  "widgets.preview.metric": "指標",
+  "settings.limits.showSubscriptions": "顯示訂閱",
+  "settings.limits.showSubscriptionsHint": "在額度面板中顯示手動記錄的訂閱續費進度。"
 }

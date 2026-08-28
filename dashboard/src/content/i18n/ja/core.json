@@ -550,5 +550,7 @@
   "limits.alert.title": "{{provider}} の上限が早く尽きる可能性があります",
   "limits.alert.body": "現在のペースでは、残り {{eta}} で使い切る可能性があります（{{percent}}% 使用済み）。",
   "settings.section.labs": "Labs",
-  "limits.alert.blocked": "通知がオフです — システム設定で許可してください"
+  "limits.alert.blocked": "通知がオフです — システム設定で許可してください",
+  "settings.limits.showSubscriptions": "サブスクを制限表示に表示",
+  "settings.limits.showSubscriptionsHint": "手動登録した更新日バーを制限と一緒に表示します。"
 }

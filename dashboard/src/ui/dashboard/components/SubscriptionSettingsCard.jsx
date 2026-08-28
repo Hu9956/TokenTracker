@@ -401,7 +401,7 @@ export function SubscriptionSettingsCard({ subscriptions, onChanged }) {
                     <span className="relative flex-1 bg-oai-gray-100 dark:bg-oai-gray-700/50 rounded-full h-1 overflow-hidden">
                       <span
                         className={`${
-                          expired ? "bg-red-500" : nearExpiry ? "bg-amber-500" : "bg-oai-brand-500"
+                          expired ? "bg-red-500" : nearExpiry ? "bg-amber-500" : "bg-blue-500"
                         } rounded-full h-full block transition-[width] duration-500 ease-out`}
                         style={{ width: `${widthPct}%`, minWidth: widthPct > 0 ? "3px" : 0 }}
                       />

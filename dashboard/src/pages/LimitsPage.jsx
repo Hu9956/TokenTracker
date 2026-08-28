@@ -207,6 +207,7 @@ export function LimitsPage() {
                 visibility={prefs.visibility}
                 displayMode={prefs.displayMode}
                 subscriptions={subscriptions}
+                showSubscriptions={prefs.showSubscriptions !== false}
               />
             </>
           )}

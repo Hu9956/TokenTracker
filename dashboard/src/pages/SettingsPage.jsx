@@ -136,6 +136,17 @@ export function SettingsPage() {
                 />
               }
             />
+            <SettingsRow
+              label={copy("settings.limits.showSubscriptions")}
+              hint={copy("settings.limits.showSubscriptionsHint")}
+              control={
+                <ToggleSwitch
+                  checked={limitsPrefs.showSubscriptions !== false}
+                  onChange={() => limitsPrefs.setShowSubscriptions(!limitsPrefs.showSubscriptions)}
+                  ariaLabel={copy("settings.limits.showSubscriptions")}
+                />
+              }
+            />
           </SectionCard>
           <SectionCard title={copy("settings.limits.providers")}>
             <LimitsSettingsPanel prefs={limitsPrefs} />

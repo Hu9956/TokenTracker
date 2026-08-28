@@ -547,5 +547,7 @@
   "limits.alert.title": "{{provider}}-Limit könnte vorzeitig aufgebraucht sein",
   "limits.alert.body": "Beim aktuellen Tempo könnte das Kontingent in {{eta}} aufgebraucht sein ({{percent}}% verbraucht).",
   "settings.section.labs": "Labs",
-  "limits.alert.blocked": "Benachrichtigungen sind aus – in den Systemeinstellungen erlauben"
+  "limits.alert.blocked": "Benachrichtigungen sind aus – in den Systemeinstellungen erlauben",
+  "settings.limits.showSubscriptions": "Abos in Limits anzeigen",
+  "settings.limits.showSubscriptionsHint": "Zeige manuell eingetragene Abo-Verlängerungen zusammen mit den Limits an."
 }

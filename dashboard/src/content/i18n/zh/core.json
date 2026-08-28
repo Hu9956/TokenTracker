@@ -727,5 +727,7 @@
   "widgets.preview.heatmap_summary": "Token · {{days}} 个活跃日",
   "widgets.preview.reset_days": "{{days}} 天后",
   "widgets.preview.reset_hours_minutes": "{{hours}} 小时 {{minutes}} 分钟后",
-  "widgets.preview.metric": "指标"
+  "widgets.preview.metric": "指标",
+  "settings.limits.showSubscriptions": "显示订阅",
+  "settings.limits.showSubscriptionsHint": "在限额面板中显示手动记录的订阅续费进度。"
 }

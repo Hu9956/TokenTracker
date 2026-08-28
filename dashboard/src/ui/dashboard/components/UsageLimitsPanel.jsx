@@ -316,8 +316,8 @@ function ToolGroup({ name, providerId, children, expandable = false, expanded = 
         <ProviderIcon provider={providerKey} size={14} className={LIMITS_PROVIDER_ICON_CLASS} />
       ) : null}
       <span className="text-sm font-medium text-oai-black dark:text-oai-white">{name}</span>
+      {rightAdornment ? <span className="shrink-0">{rightAdornment}</span> : null}
       {badge}
-      {rightAdornment ? <span className="ml-auto shrink-0">{rightAdornment}</span> : null}
     </div>
   );
 
@@ -381,15 +381,20 @@ function SubscriptionRightBadge({ subscription }) {
 // Inline subscription progress bar, rendered under the limit bars of a linked
 // provider. Reuses the same label column width as the limit bars so their
 // tracks line up, and mirrors the limit bar's pct + reset columns on the right.
-function SubscriptionBar({ subscription, now }) {
+// When displayMode is "remaining", the bar flips to show remaining cycle time
+// (100 - elapsed), matching the limits panel's remaining mode.
+function SubscriptionBar({ subscription, now, mode = LIMIT_DISPLAY_MODES.USED }) {
   const view = cycleView(subscription, now);
   if (!view) return null;
   const { endMs, expired } = view;
   const nearExpiry = !expired && endMs - now <= 3 * 86400000;
-  const widthPct = expired ? 100 : view.progress * 100;
-  const rounded = Math.round(widthPct);
+  const rawPct = expired ? 100 : view.progress * 100;
+  const displayPct = mode === LIMIT_DISPLAY_MODES.REMAINING ? 100 - rawPct : rawPct;
+  // Clamp and keep the bar visible for <1% remaining/used
+  const renderWidth = expired ? 100 : Math.max(0, Math.min(100, displayPct));
+  const rounded = Math.round(renderWidth);
   const labelPct =
-    widthPct > 0 && rounded === 0 ? copy("limits.bar.sub_one_percent") : `${rounded}%`;
+    renderWidth > 0 && rounded === 0 ? copy("limits.bar.sub_one_percent") : `${rounded}%`;
   return (
     <div className="flex items-center gap-2">
       <span
@@ -401,9 +406,9 @@ function SubscriptionBar({ subscription, now }) {
       <div className="relative flex-1 bg-oai-gray-100 dark:bg-oai-gray-700/50 rounded-full h-1.5 overflow-hidden">
         <div
           className={`${
-            expired ? "bg-red-500" : nearExpiry ? "bg-amber-500" : "bg-oai-brand-500"
-          } rounded-full h-full block transition-[width] duration-500 ease-out`}
-          style={{ width: `${widthPct}%`, minWidth: widthPct > 0 ? "3px" : 0 }}
+            expired ? "bg-red-500" : nearExpiry ? "bg-amber-500" : "bg-blue-500"
+          } rounded-full h-full block motion-safe:transition-[width] motion-safe:duration-500 ease-out motion-reduce:transition-none`}
+          style={{ width: `${renderWidth}%`, minWidth: renderWidth > 0 ? "3px" : 0 }}
         />
       </div>
       <span className="text-[11px] tabular-nums text-oai-gray-500 dark:text-oai-gray-400 w-9 text-right shrink-0 whitespace-nowrap">
@@ -595,7 +600,7 @@ function renderConfiguredProvider(id, data, title, mode, expanded, onToggle, bad
       rightAdornment={subscription ? <SubscriptionRightBadge subscription={subscription} /> : null}
     >
       <LimitWindowSection mode={mode} rows={rows} extra={extra} />
-      {subscription ? <SubscriptionBar subscription={subscription} now={now} /> : null}
+      {subscription ? <SubscriptionBar subscription={subscription} now={now} mode={mode} /> : null}
       {expanded ? <LimitDetail rows={rows} mode={mode} now={now} /> : null}
       {expanded && subscription ? (
         <SubscriptionDetail subscription={subscription} now={now} />
@@ -608,7 +613,7 @@ function renderConfiguredProvider(id, data, title, mode, expanded, onToggle, bad
 // fetch error). A linked subscription still belongs to this row: it is
 // user-entered data, so its badge/progress stay visible regardless of the
 // tool's own configuration state.
-function renderUnlinkedProvider(id, statusNodes, expanded, onToggle, subscription = null, now = Date.now()) {
+function renderUnlinkedProvider(id, statusNodes, expanded, onToggle, subscription = null, now = Date.now(), mode = LIMIT_DISPLAY_MODES.USED) {
   const hasSubscription = Boolean(subscription);
   return (
     <ToolGroup
@@ -621,7 +626,7 @@ function renderUnlinkedProvider(id, statusNodes, expanded, onToggle, subscriptio
       rightAdornment={hasSubscription ? <SubscriptionRightBadge subscription={subscription} /> : null}
     >
       {statusNodes}
-      {hasSubscription ? <SubscriptionBar subscription={subscription} now={now} /> : null}
+      {hasSubscription ? <SubscriptionBar subscription={subscription} now={now} mode={mode} /> : null}
       {hasSubscription && expanded ? (
         <div className="mt-1">
           <SubscriptionDetail subscription={subscription} now={now} />
@@ -645,6 +650,7 @@ function renderProviderGroup(id, data, mode, expanded, onToggle, subscription = 
       onToggle,
       subscription,
       now,
+      mode,
     );
   }
   if (id === "opencodeGo" && data.subscription_status === "inactive") {
@@ -655,6 +661,7 @@ function renderProviderGroup(id, data, mode, expanded, onToggle, subscription = 
       onToggle,
       subscription,
       now,
+      mode,
     );
   }
   if (data.error) {
@@ -672,6 +679,7 @@ function renderProviderGroup(id, data, mode, expanded, onToggle, subscription = 
       onToggle,
       subscription,
       now,
+      mode,
     );
   }
 
@@ -948,7 +956,7 @@ function useWidestLabelWidth(containerRef) {
   return labelWidth;
 }
 
-export function UsageLimitsPanel({ claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode, opencodeGo, qoder, qoderCn, codingPlan, order, visibility, displayMode, subscriptions = [] }) {
+export function UsageLimitsPanel({ claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode, opencodeGo, qoder, qoderCn, codingPlan, order, visibility, displayMode, subscriptions = [], showSubscriptions = true }) {
   const dataById = { claude, codex, cursor, gemini, kimi, kiro, grok, antigravity, copilot, zcode, opencodeGo, qoder, qoderCn, codingPlan };
   const containerRef = useRef(null);
   const labelWidth = useWidestLabelWidth(containerRef);
@@ -972,24 +980,28 @@ export function UsageLimitsPanel({ claude, codex, cursor, gemini, kimi, kiro, gr
   // record; only when every record for a provider is past its date does the
   // most recently expired one show (an expired history record must not mask a
   // live renewal). Extra records stay manageable in the settings popover.
+  // When the user disables subscription display, skip the mapping entirely so
+  // inline badges/bars/details all disappear.
   const subscriptionByProvider = new Map();
-  for (const subscription of subscriptions || []) {
-    if (!subscription?.provider) continue;
-    const endMs = new Date(subscription.nextBillingAt).getTime();
-    if (!Number.isFinite(endMs)) continue;
-    const existing = subscriptionByProvider.get(subscription.provider);
-    if (!existing) {
-      subscriptionByProvider.set(subscription.provider, subscription);
-      continue;
-    }
-    const existingMs = new Date(existing.nextBillingAt).getTime();
-    const upcoming = endMs > now;
-    const existingUpcoming = existingMs > now;
-    if (
-      (upcoming && (!existingUpcoming || existingMs > endMs)) ||
-      (!upcoming && !existingUpcoming && endMs > existingMs)
-    ) {
-      subscriptionByProvider.set(subscription.provider, subscription);
+  if (showSubscriptions) {
+    for (const subscription of subscriptions || []) {
+      if (!subscription?.provider) continue;
+      const endMs = new Date(subscription.nextBillingAt).getTime();
+      if (!Number.isFinite(endMs)) continue;
+      const existing = subscriptionByProvider.get(subscription.provider);
+      if (!existing) {
+        subscriptionByProvider.set(subscription.provider, subscription);
+        continue;
+      }
+      const existingMs = new Date(existing.nextBillingAt).getTime();
+      const upcoming = endMs > now;
+      const existingUpcoming = existingMs > now;
+      if (
+        (upcoming && (!existingUpcoming || existingMs > endMs)) ||
+        (!upcoming && !existingUpcoming && endMs > existingMs)
+      ) {
+        subscriptionByProvider.set(subscription.provider, subscription);
+      }
     }
   }
 

@@ -550,5 +550,7 @@
   "limits.alert.title": "{{provider}} 한도가 일찍 소진될 수 있습니다",
   "limits.alert.body": "현재 속도라면 {{eta}} 후 소진될 수 있습니다({{percent}}% 사용됨).",
   "settings.section.labs": "Labs",
-  "limits.alert.blocked": "알림이 꺼져 있음 — 시스템 설정에서 허용하세요"
+  "limits.alert.blocked": "알림이 꺼져 있음 — 시스템 설정에서 허용하세요",
+  "settings.limits.showSubscriptions": "구독을 한도에 표시",
+  "settings.limits.showSubscriptionsHint": "수동으로 등록한 구독 갱신 바를 한도와 함께 표시합니다."
 }
