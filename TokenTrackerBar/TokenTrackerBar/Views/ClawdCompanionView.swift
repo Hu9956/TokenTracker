@@ -482,7 +482,8 @@ struct ClawdCompanionView: View {
             case .vector where BotFrames.isAvailable:
                 BotSpriteView(
                     state: clawdState.petStateName,
-                    colorId: characterStore.botColor
+                    colorId: characterStore.botColor,
+                    isVisible: isCharacterTimelineVisible
                 )
             case .vector:
                 // Pre-rendered clips missing or schema-stale (run gen:bot-frames).
