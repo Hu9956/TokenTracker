@@ -17435,6 +17435,7 @@ async function parseAntigravityFile({
       // Match the mainstream convention (Codebuddy / Kilocode / OMP / Hermes):
       // total_tokens = sum of every token column. No cache columns here.
       delta.total_tokens = inputDelta + outputTokens + reasoningTokens;
+      delta.billable_total_tokens = delta.total_tokens;
       delta.conversation_count = 1;
       billedPlanner = delta.total_tokens > 0;
     }

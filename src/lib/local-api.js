@@ -219,8 +219,12 @@ function normalizeQueueRow(row) {
   // non-zero billable usage (GitHub issue #106). Treat billing and usage as
   // orthogonal: bump billable up to total_tokens at read time so historical
   // queue.jsonl entries render correctly without requiring a file rewrite.
+  // Antigravity had the same symptom from e69e2746a (billable deleted during
+  // the O(N) refactoring, leaving 167 local rows with billable=0 until the
+  // parser fix). Apply the same read-time healing so upgraded installs show
+  // correct heatmap / rolling numbers without a queue rewrite.
   const sourceName = String(normalized.source || "").toLowerCase();
-  if (sourceName === "cursor") {
+  if (sourceName === "cursor" || sourceName === "antigravity") {
     const totalTokens = Number(normalized.total_tokens || 0);
     const billable = Number(normalized.billable_total_tokens || 0);
     if (totalTokens > 0 && billable < totalTokens) {

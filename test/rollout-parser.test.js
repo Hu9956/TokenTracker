@@ -11596,6 +11596,7 @@ test("parseAntigravityIncremental bills only newly added context per planner cal
       queued[0].total_tokens,
       queued[0].input_tokens + queued[0].output_tokens + queued[0].reasoning_output_tokens,
     );
+    assert.equal(queued[0].billable_total_tokens, queued[0].total_tokens);
   } finally {
     await fs.rm(tmp, { recursive: true, force: true });
   }
