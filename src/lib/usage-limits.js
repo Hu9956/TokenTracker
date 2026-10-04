@@ -2262,7 +2262,12 @@ function normalizeAntigravityCachedLimits(raw, { nowMs = Date.now() } = {}) {
   return hasAntigravityWindow(cached) ? cached : null;
 }
 
+function isAntigravityQuotaDisabled() {
+  return process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA === "1";
+}
+
 function readAntigravityLimitsCache({ home, nowMs = Date.now() } = {}) {
+  if (isAntigravityQuotaDisabled()) return null;
   const cachePath = resolveAntigravityLimitsCachePath({ home });
   try {
     const parsed = JSON.parse(fs.readFileSync(cachePath, "utf8"));
@@ -3256,6 +3261,7 @@ function loadAntigravityCredentials({
   securityRunner,
   nowMs = Date.now(),
 } = {}) {
+  if (isAntigravityQuotaDisabled()) return null;
   const candidates = collectAntigravityFileCredentials({ home });
   if (platform === "darwin" || typeof securityRunner === "function") {
     const parsed = parseAntigravityCredentialPayload(readAntigravityKeychainRaw({ securityRunner }));
@@ -3403,6 +3409,7 @@ async function fetchAntigravityRemoteLimits({
   signal,
   creds,
 } = {}) {
+  if (isAntigravityQuotaDisabled()) return null;
   const resolvedCreds = creds !== undefined
     ? creds
     : loadAntigravityCredentials({ home, platform, securityRunner, nowMs });
@@ -3497,6 +3504,7 @@ async function fetchAntigravityLimits({
   securityRunner,
   signal,
 } = {}) {
+  if (isAntigravityQuotaDisabled()) return { configured: false, error: null };
   const creds = loadAntigravityCredentials({ home, platform, securityRunner, nowMs });
   const startedAtMs = performance.now();
   // min(this step's ceiling, budget left after reserving the fallback guard).
