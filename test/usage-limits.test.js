@@ -4481,6 +4481,37 @@ describe("fetchAntigravityLimits remote OAuth", () => {
 describe("TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA opt-out", () => {
   afterEach(() => {
     delete process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA;
+    resetUsageLimitsCache();
+  });
+
+  it("does not serve a pre-existing aggregate from before the opt-out was set", async () => {
+    resetUsageLimitsCache();
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tokentracker-agy-optout-aggregate-"));
+    try {
+      writeAntigravityOauthToken(tmp);
+      const calls = [];
+      const opts = {
+        home: tmp,
+        platform: "linux",
+        providerTimeoutMs: 1000,
+        securityRunner() { return { status: 1, stdout: "" }; },
+        commandRunner() { return { status: 1, stdout: "" }; },
+        fetchImpl: antigravityRemoteFetchImpl({ calls }),
+      };
+
+      // Warm the aggregate cache while Antigravity is still enabled.
+      const before = await getUsageLimits(opts);
+      assert.equal(before.antigravity.configured, true);
+      assert.ok(calls.length > 0, "warm-up must actually hit the quota endpoint");
+
+      // Enabling the opt-out must not be answered from that cached aggregate.
+      process.env.TOKENTRACKER_DISABLE_ANTIGRAVITY_QUOTA = "1";
+      const after = await getUsageLimits(opts);
+      assert.equal(after.antigravity.configured, false);
+      assert.equal(after.antigravity.cached, undefined);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 
   it("skips credential reads and makes no remote fetch when set", async () => {
