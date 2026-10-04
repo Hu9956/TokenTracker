@@ -27,8 +27,9 @@ struct UsageLimitsView: View {
     /// Upper bound for the shared label column. A label past it truncates with
     /// an ellipsis (full text stays in the row tooltip) instead of squeezing
     /// every row's bar — model + plan names can run well past this width.
-    /// ~1/3 of the popover's content width: longer labels start eating the bar.
-    private static let labelColumnMaxWidth: CGFloat = 150
+    /// 60pt keeps labels to a short recognizable prefix so long names barely
+    /// affect bar width (reporter-chosen value).
+    private static let labelColumnMaxWidth: CGFloat = 60
 
     /// Measured reset-column width with the fixed floor applied. Before the
     /// first measurement lands it equals the old fixed width, so reset rows
