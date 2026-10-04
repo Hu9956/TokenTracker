@@ -3780,7 +3780,7 @@ async function getUsageLimits(options = {}) {
   if (inFlightBySelection[selection]) {
     return inFlightBySelection[selection];
   }
-  const promise = fetchUsageLimitsUncached(options).finally(() => {
+  const promise = fetchUsageLimitsUncached({ ...options, selectionKey: selection }).finally(() => {
     if (inFlightBySelection[selection] === promise) inFlightBySelection[selection] = null;
   });
   inFlightBySelection[selection] = promise;
@@ -3799,6 +3799,10 @@ async function fetchUsageLimitsUncached({
   providerTimeoutMs = DEFAULT_PROVIDER_TIMEOUT_MS,
   forceRefresh = false,
   devinEnabled = false,
+  // Selection key fixed by getUsageLimits before the fetch began. Re-deriving it
+  // here would let an opt-out flipped mid-fetch store a pre-opt-out result in the
+  // post-opt-out slot.
+  selectionKey,
 } = {}) {
   const nowMs = Date.now();
 
@@ -4267,7 +4271,7 @@ async function fetchUsageLimitsUncached({
     };
   }
 
-  cacheBySelection[usageLimitsSelectionKey({ devinEnabled })] = {
+  cacheBySelection[selectionKey || usageLimitsSelectionKey({ devinEnabled })] = {
     data,
     expiresAtMs: cacheExpiresAtMs(data, nowMs),
   };
